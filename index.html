@@ -16,9 +16,17 @@
 
   <div class="app-shell">
     <aside class="sidebar" id="sidebar">
-      <div class="brand" id="homeButton" role="button" tabindex="0" aria-label="Novi razgovor" title="Novi razgovor">
-        <div class="brand-mark" aria-hidden="true">AL </div>
-        <div><strong>AL AI</strong><span>DeepSeek AI asistent</span></div>
+      <div class="sidebar-header">
+        <div class="brand" id="homeButton" role="button" tabindex="0" aria-label="Novi razgovor" title="Novi razgovor">
+          <div class="brand-mark" aria-hidden="true">AL </div>
+          <div><strong>AL AI</strong><span>DeepSeek AI asistent</span></div>
+        </div>
+        <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-label="Sklopi bočni panel" aria-expanded="true" title="Toggle side panel">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="16" rx="2"></rect>
+            <path d="M9 4v16M15 9l-3 3 3 3"></path>
+          </svg>
+        </button>
       </div>
 
       <button class="new-chat" id="newChatButton" type="button">
@@ -38,6 +46,27 @@
       <header class="topbar">
         <button class="icon-button menu-button" id="menuButton" type="button" aria-label="Otvori meni">☰</button>
         <div class="model-info"><span>Aktivni model</span><strong id="modelName">DeepSeek Chat</strong></div>
+        <button class="app-menu-toggle" id="appMenuToggle" type="button" aria-label="Otvori meni aplikacija" aria-expanded="false" aria-controls="appMenu" title="A-L aplikacije">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1"></rect><rect x="14" y="4" width="6" height="6" rx="1"></rect><rect x="4" y="14" width="6" height="6" rx="1"></rect><rect x="14" y="14" width="6" height="6" rx="1"></rect></svg>
+        </button>
+        <nav class="app-menu" id="appMenu" aria-label="A-L aplikacije">
+          <a href="https://a-lukovic.web.app/profil/profil.html" title="A-L profil">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3"></circle><path d="M5.5 20c.7-4 3-6 6.5-6s5.8 2 6.5 6"></path></svg>
+            <span>A-L profil</span>
+          </a>
+          <a href="https://a-lukovic.web.app/gui.html" title="A-L portfolio">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="14" rx="2"></rect><path d="M8 6V4h8v2M3 11h18M10 11v2h4v-2"></path></svg>
+            <span>A-L portfolio</span>
+          </a>
+          <a href="https://al-market.onrender.com/m1" title="A-L market">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18V9M10 18V5M16 18v-7M22 18V3"></path><path d="m3 12 6-4 6 2 7-6"></path></svg>
+            <span>A-L market</span>
+          </a>
+          <a href="https://a-lukovic.web.app/radovi/radovi.html" title="A-L istraživanja">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4A2 2 0 0 0 19 18l-5-9V3"></path><path d="M7.5 15h9"></path></svg>
+            <span>A-L istraživanja</span>
+          </a>
+        </nav>
         <select id="modelSelect" aria-label="Izaberi model">
           <option value="deepseek-chat">DeepSeek Chat</option>
           <option value="deepseek-reasoner">DeepSeek Reasoner</option>

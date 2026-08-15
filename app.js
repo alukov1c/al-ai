@@ -7,6 +7,10 @@ const modelSelect = document.querySelector('#modelSelect');
 const modelName = document.querySelector('#modelName');
 const historyElement = document.querySelector('#history');
 const sidebar = document.querySelector('#sidebar');
+const appShell = document.querySelector('.app-shell');
+const sidebarToggle = document.querySelector('#sidebarToggle');
+const appMenu = document.querySelector('#appMenu');
+const appMenuToggle = document.querySelector('#appMenuToggle');
 
 const STORAGE_KEY = 'al-ai-conversations';
 let conversations = loadConversations();
@@ -275,7 +279,42 @@ homeButton.addEventListener('keydown', (event) => {
     startNewConversation();
   }
 });
-document.querySelector('#menuButton').addEventListener('click', () => sidebar.classList.toggle('open'));
+function setSidebarState(open) {
+  const isMobile = window.matchMedia('(max-width: 700px)').matches;
+  if (isMobile) {
+    sidebar.classList.toggle('open', open);
+  } else {
+    appShell.classList.toggle('sidebar-collapsed', !open);
+  }
+  sidebarToggle.setAttribute('aria-expanded', String(open));
+  sidebarToggle.setAttribute('aria-label', open ? 'Sklopi bočni panel' : 'Otvori bočni panel');
+}
+
+function setAppMenuState(open) {
+  appMenu.classList.toggle('open', open);
+  appMenuToggle.setAttribute('aria-expanded', String(open));
+  appMenuToggle.setAttribute('aria-label', open ? 'Zatvori meni aplikacija' : 'Otvori meni aplikacija');
+}
+
+appMenuToggle.addEventListener('click', (event) => {
+  event.stopPropagation();
+  setAppMenuState(!appMenu.classList.contains('open'));
+});
+appMenu.addEventListener('click', (event) => event.stopPropagation());
+document.addEventListener('click', () => setAppMenuState(false));
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') setAppMenuState(false);
+});
+window.addEventListener('resize', () => {
+  if (window.innerWidth > 820) setAppMenuState(false);
+});
+
+sidebarToggle.addEventListener('click', () => setSidebarState(false));
+document.querySelector('#menuButton').addEventListener('click', () => {
+  const isMobile = window.matchMedia('(max-width: 700px)').matches;
+  const isOpen = isMobile ? sidebar.classList.contains('open') : !appShell.classList.contains('sidebar-collapsed');
+  setSidebarState(!isOpen);
+});
 modelSelect.addEventListener('change', () => {
   modelName.textContent = modelSelect.options[modelSelect.selectedIndex].text;
   const conversation = activeConversation();
