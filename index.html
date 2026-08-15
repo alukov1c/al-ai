@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="sr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AL AI asistent zasnovan na DeepSeek API-ju">
+  <title>AL AI — DeepSeek asistent</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="stil.css">
+</head>
+<body>
+  <div class="ambient ambient-one"></div>
+  <div class="ambient ambient-two"></div>
+
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand" id="homeButton" role="button" tabindex="0" aria-label="Novi razgovor" title="Novi razgovor">
+        <div class="brand-mark" aria-hidden="true">AL </div>
+        <div><strong>AL AI</strong><span>DeepSeek asistent</span></div>
+      </div>
+
+      <button class="new-chat" id="newChatButton" type="button">
+        <span aria-hidden="true">＋</span> Novi razgovor
+      </button>
+
+      <div class="sidebar-label">Razgovori</div>
+      <nav class="history" id="history" aria-label="Istorija razgovora"></nav>
+
+      <div class="sidebar-footer">
+        <div class="status-dot"></div>
+        <div><strong>DeepSeek API</strong><span id="connectionStatus">Spreman za povezivanje</span></div>
+      </div>
+    </aside>
+
+    <main class="chat-panel">
+      <header class="topbar">
+        <button class="icon-button menu-button" id="menuButton" type="button" aria-label="Otvori meni">☰</button>
+        <div class="model-info"><span>Aktivni model</span><strong id="modelName">DeepSeek Chat</strong></div>
+        <select id="modelSelect" aria-label="Izaberi model">
+          <option value="deepseek-chat">DeepSeek Chat</option>
+          <option value="deepseek-reasoner">DeepSeek Reasoner</option>
+        </select>
+      </header>
+
+      <section class="messages" id="messages" aria-live="polite">
+        <div class="welcome" id="welcome">
+          <div class="hero-icon" aria-hidden="true"> A-L <!-- ✦ --></div>
+          <p class="eyebrow">INTELIGENTNI DIGITALNI ASISTENT</p>
+          <h1>Kako mogu da Vam pomognem?</h1>
+          <p class="welcome-copy">Postavite pitanje, zatražite objašnjenje ili razvijte novu ideju.</p>
+          <div class="suggestions">
+            <button class="suggestion" type="button" data-prompt="Objašnjenje koncepta funkcionisanja velikih jezičkih modela jednostavnim rečima.">
+              <span>◎</span><strong>Objašnjenje koncepta</strong><small>Složene teme, jednostavno</small>
+            </button>
+            <button class="suggestion" type="button" data-prompt="Pisanje JavaScript funkcije za sortiranje niza objekata po datumu.">
+              <span>&lt;/&gt;</span><strong>Pisanje koda</strong><small>Rešenja i objašnjenja</small>
+            </button>
+            <button class="suggestion" type="button" data-prompt="Generisanje pet kreativnih ideja za veb aplikaciju zasnovanu na veštačkoj inteligenciji.">
+              <span>◇</span><strong>Generisanje ideja</strong><small>Kreativni početak projekta</small>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <div class="composer-wrap">
+        <form class="composer" id="chatForm">
+          <textarea id="promptInput" rows="1" maxlength="12000" placeholder="Pošaljite poruku AL AI asistentu..." aria-label="Poruka"></textarea>
+          <div class="composer-bottom">
+            <span class="shortcut">Enter za slanje · Shift + Enter za novi red</span>
+            <button class="send-button" id="sendButton" type="submit" aria-label="Pošalji poruku">➜</button>
+          </div>
+        </form>
+        <p class="disclaimer">AL AI može napraviti grešku. Proverite važne informacije.</p>
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
