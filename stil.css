@@ -13,15 +13,11 @@
 }
 
 * {
-
     box-sizing:border-box
-
 }
 
 html,body {
-
     height:100%
-
 }
 
 body {
@@ -35,15 +31,11 @@ body {
 }
 
 button,textarea,select {
-
     font:inherit
-
 }
 
 button {
-
     color:inherit
-
 }
 
 .ambient {
@@ -64,9 +56,7 @@ button {
 }
 
 .ambient-two {
-
     display:none
-
 }
 
 .app-shell {
@@ -121,15 +111,11 @@ button {
 }
 
 .brand strong,.brand span {
-
     display:block
-
 }
 
 .brand strong {
-
     font-size:17px
-
 }
 
 .brand span {
@@ -297,9 +283,7 @@ button {
 }
 
 .model-info span,.model-info strong {
-
     display:block
-
 }
 
 .model-info span {
@@ -427,9 +411,7 @@ h1 {
 }
 
 .suggestion span,.suggestion strong,.suggestion small {
-
     display:block
-
 }
 
 .suggestion span {
@@ -441,9 +423,7 @@ h1 {
 }
 
 .suggestion strong {
-
     font-size:14px
-
 }
 
 .suggestion small {
@@ -464,9 +444,7 @@ h1 {
 }
 
 .message-row.user {
-
     justify-content:flex-end
-
 }
 
 .avatar {
@@ -530,15 +508,11 @@ h1 {
 }
 
 .typing i:nth-child(2) {
-
     animation-delay:.2s
-
 }
 
 .typing i:nth-child(3) {
-
     animation-delay:.4s
-
 }
 
 .composer-wrap {
@@ -594,9 +568,7 @@ textarea {
 }
 
 textarea::placeholder {
-
     color:#9ca3af
-
 }
 
 .composer-bottom {
@@ -632,9 +604,7 @@ textarea::placeholder {
 }
 
 .send-button:hover {
-
     background:rgba(37,99,235,.06)
-
 }
 
 .send-button:disabled {
@@ -656,15 +626,11 @@ textarea::placeholder {
 @keyframes alBorderMove {
 
     from {
-
         background-position:0 50%
-
     }
 
     to {
-
         background-position:400% 50%
-
     }
 
 
@@ -673,15 +639,11 @@ textarea::placeholder {
 @keyframes snowMove {
 
     from {
-
         transform:translateY(-100px)
-
     }
 
     to {
-
         transform:translateY(100px)
-
     }
 
 
@@ -726,9 +688,7 @@ textarea::placeholder {
 @media screen and (max-width:700px) {
 
     .app-shell {
-
         grid-template-columns:1fr
-
     }
 
     .sidebar {
@@ -742,21 +702,15 @@ textarea::placeholder {
     }
 
     .sidebar.open {
-
         transform:translateX(0)
-
     }
 
     .menu-button {
-
         display:block
-
     }
 
     .topbar {
-
         padding:0 16px
-
     }
 
     .model-info {
@@ -774,15 +728,11 @@ textarea::placeholder {
     }
 
     .messages {
-
         padding:24px 14px
-
     }
 
     .welcome {
-
         margin-top:24px
-
     }
 
     .suggestions {
@@ -793,27 +743,19 @@ textarea::placeholder {
     }
 
     .suggestion span {
-
         margin-bottom:10px
-
     }
 
     .composer-wrap {
-
         width:calc(100% - 24px)
-
     }
 
     .shortcut {
-
         display:none
-
     }
 
     .composer-bottom {
-
         justify-content:flex-end
-
     }
 
 
@@ -838,9 +780,7 @@ textarea::placeholder {
 }
 
 .messages::-webkit-scrollbar,.history::-webkit-scrollbar {
-
     width:10px
-
 }
 
 .messages::-webkit-scrollbar-track {
@@ -851,9 +791,7 @@ textarea::placeholder {
 }
 
 .history::-webkit-scrollbar-track {
-
     background:transparent
-
 }
 
 .messages::-webkit-scrollbar-thumb,.history::-webkit-scrollbar-thumb {
@@ -900,9 +838,7 @@ textarea::placeholder {
 }
 
 .history-entry.active .history-item {
-
     color:#1d4ed8
-
 }
 
 .conversation-action {
@@ -923,9 +859,7 @@ textarea::placeholder {
 }
 
 .history-entry:hover .conversation-action,.history-entry:focus-within .conversation-action {
-
     opacity:1
-
 }
 
 .rename-chat:hover {
@@ -965,9 +899,7 @@ textarea::placeholder {
 @media (hover:none) {
 
     .conversation-action {
-
         opacity:1
-
     }
 
 
@@ -991,9 +923,7 @@ textarea::placeholder {
 }
 
 .chat-panel {
-
     height:100dvh
-
 }
 
 .messages {
@@ -1005,9 +935,7 @@ textarea::placeholder {
 }
 
 .history {
-
     min-height:0
-
 }
 
 /* Prikazati odgovor kompaktnije i uz poluprovidne površine. */
@@ -1044,9 +972,7 @@ textarea::placeholder {
 }
 
 .assistant .bubble p {
-
     margin:.4em 0
-
 }
 
 .assistant .bubble h3 {
@@ -1059,9 +985,7 @@ textarea::placeholder {
 }
 
 .assistant .bubble h3:first-child {
-
     margin-top:0
-
 }
 
 .assistant .bubble strong {
@@ -1079,9 +1003,7 @@ textarea::placeholder {
 }
 
 .assistant .bubble li {
-
     margin:.25em 0
-
 }
 
 .assistant .bubble hr {
