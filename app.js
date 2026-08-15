@@ -306,7 +306,7 @@ document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') setAppMenuState(false);
 });
 window.addEventListener('resize', () => {
-  if (window.innerWidth > 820) setAppMenuState(false);
+  if (window.innerWidth > 700) setAppMenuState(false);
 });
 
 sidebarToggle.addEventListener('click', () => setSidebarState(false));
