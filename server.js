@@ -10,7 +10,8 @@ const publicFiles = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
   ['/index.html', ['index.html', 'text/html; charset=utf-8']],
   ['/stil.css', ['stil.css', 'text/css; charset=utf-8']],
-  ['/app.js', ['app.js', 'text/javascript; charset=utf-8']]
+  ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
+  ['/AL-AI.svg', ['AL-AI.svg', 'image/svg+xml']]
 ]);
 
 function sendJson(response, status, body) {
