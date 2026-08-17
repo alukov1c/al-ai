@@ -38,6 +38,14 @@ button {
     color:inherit
 }
 
+#w-tekst{
+
+        font-weight: 50;
+        color: #948e8e;
+        
+}
+
+
 .ambient {
 
     position:fixed;
