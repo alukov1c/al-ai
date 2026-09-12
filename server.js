@@ -29,13 +29,13 @@ async function handleChat(request, response) {
   request.on('end', async () => {
     try {
       const data = JSON.parse(body);
-      const allowedModels = new Set(['deepseek-chat', 'deepseek-reasoner']);
+      const modelModes = new Map([['deepseek-flash', false], ['deepseek-flash-thinking', true], ['deepseek-chat', false], ['deepseek-reasoner', true]]); const selection = data.model || 'deepseek-flash'; if (!modelModes.has(selection)) return sendJson(response, 400, { error: 'Nepodržan model.' }); const thinking = modelModes.get(selection);
       if (!Array.isArray(data.messages) || !data.messages.length) return sendJson(response, 400, { error: 'Poruke nisu prosleđene.' });
       const messages = data.messages.slice(-30).map(({ role, content }) => ({ role, content: String(content).slice(0, 12000) }));
       const apiResponse = await fetch('https://api.deepseek.com/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({ model: allowedModels.has(data.model) ? data.model : 'deepseek-chat', messages, temperature: 0.7 })
+        body: JSON.stringify({ model: 'deepseek-flash', messages, stream: false, thinking: { type: thinking ? 'enabled' : 'disabled' }, ...(thinking ? { reasoning_effort: 'high' } : { temperature: 0.7 }) })
       });
       const result = await apiResponse.json();
       if (!apiResponse.ok) return sendJson(response, apiResponse.status, { error: result.error?.message || 'Greška DeepSeek API-ja.' });

@@ -18,7 +18,7 @@ let activeId = conversations[0]?.id || createConversation();
 let isSending = false;
 
 function loadConversations() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+  try { const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; if (!Array.isArray(saved)) return []; return saved.map((conversation) => ({ ...conversation, model: ['deepseek-reasoner', 'deepseek-flash-thinking'].includes(conversation.model) ? 'deepseek-flash-thinking' : 'deepseek-flash' })); }
   catch { return []; }
 }
 
