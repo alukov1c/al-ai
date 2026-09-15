@@ -1354,3 +1354,23 @@ textarea::placeholder {
     color:inherit
 
 }
+
+/* Oblikovati tabele u odgovorima i omoguciti horizontalno pomeranje. */
+.assistant .bubble { min-width:0; }
+.bubble .table-scroll {
+    max-width:100%;
+    overflow-x:auto;
+    margin:16px 0;
+    border:1px solid #cbd7eb;
+    border-radius:10px;
+    white-space:normal;
+}
+.bubble .table-scroll:focus-visible { outline:2px solid #2563eb; outline-offset:3px; }
+.bubble table { width:100%; border-collapse:collapse; font-size:.95em; line-height:1.55; }
+.bubble th,.bubble td { padding:11px 14px; min-width:120px; border-right:1px solid #cbd7eb; border-bottom:1px solid #cbd7eb; vertical-align:top; }
+.bubble th { background:#eaf1ff; color:#1e40af; font-weight:700; }
+.bubble th:last-child,.bubble td:last-child { border-right:0; }
+.bubble tbody tr:last-child td { border-bottom:0; }
+.bubble tbody tr:nth-child(even) { background:#f5f8ff; }
+.bubble tbody tr:hover { background:#edf4ff; }
+@media(max-width:700px) { .bubble th,.bubble td { padding:9px 11px; } }

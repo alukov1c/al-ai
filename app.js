@@ -188,12 +188,27 @@ function appendInlineFormatting(element, text) {
   element.append(document.createTextNode(text.slice(position)));
 }
 
+function splitTableRow(line) {
+  let row = line.trim();
+  if (row.startsWith('|')) row = row.slice(1);
+  if (row.endsWith('|') && !row.endsWith('\\|')) row = row.slice(0, -1);
+  const cells = [''];
+  for (let i = 0; i < row.length; i++) {
+    if (row[i] === '\\' && row[i + 1] === '|') { cells[cells.length - 1] += '|'; i++; }
+    else if (row[i] === '|') cells.push('');
+    else cells[cells.length - 1] += row[i];
+  }
+  return cells.map((cell) => cell.trim());
+}
+
 function renderAssistantContent(container, content) {
   const lines = content.replace(/\r\n/g, '\n').split('\n');
   let codeBlock = null;
   let list = null;
 
-  lines.forEach((line) => {
+  let consumedThrough = -1;
+  lines.forEach((line, index) => {
+    if (index <= consumedThrough) return;
     if (line.trim().startsWith('```')) {
       if (codeBlock) {
         container.append(codeBlock);
@@ -208,6 +223,44 @@ function renderAssistantContent(container, content) {
       const codeLine = document.createElement('code');
       codeLine.textContent = `${line}\n`;
       codeBlock.append(codeLine);
+      return;
+    }
+    const headers = splitTableRow(line);
+    const separators = splitTableRow(lines[index + 1] || '');
+    if (line.includes('|') && headers.length === separators.length &&
+        separators.every((cell) => /^:?-{3,}:?$/.test(cell))) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'table-scroll';
+      wrapper.tabIndex = 0;
+      wrapper.setAttribute('role', 'region');
+      wrapper.setAttribute('aria-label', 'Tabela u odgovoru');
+      const table = document.createElement('table');
+      const head = document.createElement('thead');
+      const body = document.createElement('tbody');
+      const appendRow = (parent, cells, tag) => {
+        const row = document.createElement('tr');
+        headers.forEach((_, column) => {
+          const cell = document.createElement(tag);
+          if (tag === 'th') cell.scope = 'col';
+          const separator = separators[column];
+          cell.style.textAlign = separator.endsWith(':') ? (separator.startsWith(':') ? 'center' : 'right') : 'left';
+          appendInlineFormatting(cell, cells[column] || '');
+          row.append(cell);
+        });
+        parent.append(row);
+      };
+      appendRow(head, headers, 'th');
+      consumedThrough = index + 1;
+      while (consumedThrough + 1 < lines.length) {
+        const next = lines[consumedThrough + 1];
+        if (!next.trim() || !next.includes('|') || next.trim().startsWith('```')) break;
+        appendRow(body, splitTableRow(next), 'td');
+        consumedThrough++;
+      }
+      table.append(head, body);
+      wrapper.append(table);
+      container.append(wrapper);
+      list = null;
       return;
     }
     if (/^\s*(---|___|\*\*\*)\s*$/.test(line)) {
