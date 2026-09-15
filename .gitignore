@@ -2,3 +2,8 @@
 api.txt
 node_modules/
 npm-debug.log*
+
+.npm-cache/
+test-artifacts/
+README.md
+RENDER-POKRETANJE.md

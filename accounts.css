@@ -1,0 +1,41 @@
+[hidden] { display:none !important; }
+.login-panel { min-height:100dvh; display:grid; place-items:center; padding:24px; }
+.account-card { width:min(440px,100%); border:1px solid var(--line); border-radius:20px; padding:28px; background:rgba(255,255,255,.94); box-shadow:0 12px 45px rgba(37,99,235,.12); }
+.account-card h1 { font-size:28px; margin:0 0 8px; color:var(--blue); }
+.account-card p, .account-dialog p { color:var(--muted); line-height:1.5; }
+.account-form { display:grid; gap:14px; }
+.account-form label { display:grid; gap:6px; font-size:13px; }
+.account-form input { width:100%; padding:11px; border:1px solid var(--line); border-radius:9px; background:white; color:var(--text); font:inherit; }
+.account-form input:focus { outline:2px solid rgba(37,99,235,.4); outline-offset:2px; }
+.account-form button, .account-dialog button, .account-controls button, #moreHistory, #retryButton {
+  padding:9px 12px; border:1px solid var(--line); border-radius:9px; background:#fff; color:#1d4ed8; cursor:pointer; font:inherit;
+}
+.account-form button[type=submit] { background:var(--blue); color:white; }
+.account-form button:disabled, .account-dialog button:disabled { opacity:.5; cursor:wait; }
+.form-message { min-height:20px; font-size:13px; overflow-wrap:anywhere; }
+.account-controls { display:flex; flex-wrap:wrap; gap:6px; padding:10px 0; border-top:1px solid var(--line); }
+.account-controls strong { flex:0 0 100%; font-size:12px; overflow-wrap:anywhere; }
+.account-controls button { font-size:11px; padding:6px 8px; }
+.account-dialog { width:min(560px,calc(100% - 24px)); max-height:85dvh; overflow:auto; padding:24px; border:1px solid var(--line); border-radius:18px; color:var(--text); }
+.account-dialog::backdrop { background:rgba(15,23,42,.38); backdrop-filter:blur(3px); }
+.dialog-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.dialog-heading h2 { margin:0; font-size:21px; }
+.account-row { display:flex; flex-wrap:wrap; gap:8px; padding:12px 0; border-bottom:1px solid var(--line); font-size:12px; }
+.account-row span { flex:0 0 100%; overflow-wrap:anywhere; }
+#adminUsers { margin:16px 0; }
+#resetForm { border:1px solid var(--line); padding:12px; border-radius:10px; margin:14px 0; }
+#appNotice { margin:6px 0; min-height:18px; color:#1d4ed8; font-size:12px; }
+#retryButton { margin-bottom:8px; font-size:12px; }
+@media (max-width:700px) {
+  .account-card { padding:22px; }
+  .account-dialog { padding:18px; }
+  .account-controls button { min-height:32px; }
+}
+
+#googleSection { margin:20px 0; }
+#googleButton, #googleLinkButton { min-height:44px; }
+#googleRefresh { border:0; background:transparent; color:var(--blue); cursor:pointer; font:inherit; font-size:12px; }
+.login-separator { border-top:1px solid var(--line); padding-top:16px; font-size:12px; text-align:center; }
+#googleLinked { font-size:11px; color:var(--green); }
+
+.form-message:empty { display:none; }

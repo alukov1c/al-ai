@@ -10,12 +10,43 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="stil.css">
+  <link rel="stylesheet" href="accounts.css">
 </head>
 <body>
   <div class="ambient ambient-one"></div>
   <div class="ambient ambient-two"></div>
 
-  <div class="app-shell">
+  <section class="login-panel" id="loginPanel">
+    <div class="account-card">
+      <h1>A-L AI</h1>
+      <p>Prijavite se da biste nastavili svoje razgovore.</p>
+      <div id="googleSection" hidden>
+        <div id="googleButton"></div>
+        <p id="googleNotice" class="form-message" role="status"></p>
+        <button id="googleRefresh" type="button">Osveži Google dugme</button>
+        <p>Prva Google prijava čeka odobrenje administratora. Ako već imate nalog, prijavite se lozinkom i povežite Google iz naloga.</p>
+        <p class="login-separator">ili se prijavite lozinkom</p>
+      </div>
+      <form id="loginForm" class="account-form">
+        <label>Korisničko ime<input id="loginUsername" autocomplete="username" maxlength="80" required></label>
+        <label>Lozinka<input id="loginPassword" type="password" autocomplete="current-password" maxlength="128" required></label>
+        <button id="loginSubmit" type="submit">Prijavi se</button>
+      </form>
+      <p id="loginError" class="form-message" role="alert"></p>
+      <p>Nalog otvara administrator aplikacije.</p>
+    </div>
+  </section>
+  <section class="login-panel" id="pendingPanel" hidden>
+    <div class="account-card">
+      <h1>Prijava je uspela</h1>
+      <p>Vaš nalog čeka odobrenje administratora. Nakon odobrenja možete započeti svoje razgovore.</p>
+      <div class="account-controls">
+        <button id="pendingRefresh" type="button">Proveri odobrenje</button>
+        <button id="pendingLogout" type="button">Odjavi se</button>
+      </div>
+    </div>
+  </section>
+  <div class="app-shell" hidden>
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
         <div class="brand" id="homeButton" role="button" tabindex="0" aria-label="Novi razgovor" title="Novi razgovor">
@@ -30,13 +61,23 @@
         </button>
       </div>
 
-      <button class="new-chat" id="newChatButton" type="button">
+      <button class="new-chat" id="newChatButton" type="button" data-busy>
         <span aria-hidden="true">＋</span> Novi razgovor
       </button>
 
       <div class="sidebar-label">Razgovori</div>
       <nav class="history" id="history" aria-label="Istorija razgovora"></nav>
 
+      <button id="moreHistory" type="button" data-busy hidden>Još razgovora</button>
+      <div class="account-controls">
+        <strong id="accountName"></strong>
+        <button id="adminButton" type="button" data-busy hidden>Korisnici</button>
+        <button id="importButton" type="button" data-busy hidden>Uvezi lokalne razgovore</button>
+        <span id="googleLinked" hidden>Google nalog je povezan</span>
+        <button id="googleLinkOpen" type="button" data-busy hidden>Poveži Google nalog</button>
+        <button id="passwordButton" type="button" data-busy>Moja lozinka</button>
+        <button id="logoutButton" type="button" data-busy>Odjavi se</button>
+      </div>
       <div class="sidebar-footer">
         <div class="status-dot"></div>
         <div><strong>DeepSeek API</strong><span id="connectionStatus">Spreman za povezivanje</span></div>
@@ -68,7 +109,7 @@
             <span>A-L istraživanja</span>
           </a>
         </nav>
-        <select id="modelSelect" aria-label="Izaberi model">
+        <select id="modelSelect" data-busy aria-label="Izaberi model">
           <option value="deepseek-flash">V4.1 Flash · Chat</option>
           <option value="deepseek-flash-thinking">V4.1 Flash · Thinking</option>
         </select>
@@ -107,11 +148,13 @@
       </section>
 
       <div class="composer-wrap">
+        <p id="appNotice" role="status"></p>
+        <button id="retryButton" type="button" data-busy hidden>Ponovi slanje</button>
         <form class="composer" id="chatForm">
           <textarea id="promptInput" rows="1" maxlength="12000" placeholder="Pošaljite poruku AL AI. " aria-label="Poruka"></textarea>
           <div class="composer-bottom">
             <span class="shortcut">Enter za slanje · Shift + Enter za novi red</span>
-            <button class="send-button" id="sendButton" type="submit" aria-label="Pošalji poruku">➜</button>
+            <button class="send-button" id="sendButton" type="submit" data-busy aria-label="Pošalji poruku">➜</button>
           </div>
         </form>
         <p class="disclaimer">AL AI može napraviti grešku. Proverite važne informacije.</p>
@@ -119,6 +162,46 @@
     </main>
   </div>
 
+  <dialog id="passwordDialog" class="account-dialog" aria-labelledby="passwordTitle">
+    <div class="dialog-heading"><h2 id="passwordTitle">Moja lozinka</h2><button id="passwordClose" type="button">Zatvori</button></div>
+    <p id="passwordHelp"></p>
+    <form id="passwordForm" class="account-form">
+      <label>Trenutna lozinka<input id="currentPassword" type="password" autocomplete="current-password" maxlength="128" required></label>
+      <label>Nova lozinka (najmanje 12 znakova)<input id="newPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
+      <label>Ponovite novu lozinku<input id="confirmPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
+      <button id="passwordSubmit" type="submit">Sačuvaj lozinku</button>
+    </form>
+    <button id="passwordLogout" type="button">Odjavi se</button>
+    <p id="passwordError" class="form-message" role="alert"></p>
+  </dialog>
+  <dialog id="adminDialog" class="account-dialog" aria-labelledby="adminTitle">
+    <div class="dialog-heading"><h2 id="adminTitle">Korisnički nalozi</h2><button id="adminClose" type="button">Zatvori</button></div>
+    <p>Kreirajte nalog i korisniku dostavite početnu lozinku. Korisnik će je promeniti pri prvoj prijavi.</p>
+    <form id="adminForm" class="account-form">
+      <label>Ime za prikaz<input id="newDisplayName" maxlength="80" required></label>
+      <label>Korisničko ime<input id="newUsername" autocomplete="off" minlength="3" maxlength="80" pattern="[a-zA-Z0-9_.@\-]+" required></label>
+      <label>Početna lozinka (najmanje 12 znakova)<input id="initialPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
+      <button id="createUserButton" type="submit">Kreiraj nalog</button>
+    </form>
+    <p id="adminNotice" class="form-message" role="status"></p>
+    <form id="resetForm" class="account-form" hidden>
+      <input id="resetUserId" type="hidden">
+      <label><span id="resetLabel">Nova početna lozinka</span><input id="resetPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
+      <button id="resetSubmit" type="submit">Postavi lozinku</button>
+      <button id="resetCancel" type="button">Otkaži</button>
+    </form>
+    <div id="adminUsers"></div>
+  </dialog>
+  <dialog id="googleLinkDialog" class="account-dialog" aria-labelledby="googleLinkTitle">
+    <div class="dialog-heading"><h2 id="googleLinkTitle">Poveži Google nalog</h2><button id="googleLinkClose" type="button">Zatvori</button></div>
+    <p>Potvrdite lozinku ovog naloga, a zatim izaberite svoj Google nalog. Oba načina prijave otvaraće iste razgovore.</p>
+    <form id="googleLinkForm" class="account-form">
+      <label>Trenutna lozinka<input id="googleLinkPassword" type="password" autocomplete="current-password" maxlength="128" required></label>
+      <button id="googleLinkSubmit" type="submit">Pripremi povezivanje</button>
+    </form>
+    <p id="googleLinkNotice" class="form-message" role="status"></p>
+    <div id="googleLinkButton"></div>
+  </dialog>
   <script src="app.js" defer></script>
 </body>
 </html>
