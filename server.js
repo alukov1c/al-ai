@@ -66,7 +66,7 @@ async function getConversation(pool, id, userId) {
     const messages = await client.query('SELECT id,role,content,image FROM messages WHERE conversation_id=$1 ORDER BY id', [id]);
     const pending = await client.query(`SELECT request_id AS id,prompt,model,image,file_id AS "fileId",
       CASE WHEN status='pending' AND started_at < now()-interval '150 seconds' THEN 'failed' ELSE status END AS status
-      FROM chat_requests WHERE conversation_id=$1 ORDER BY started_at DESC LIMIT 1`, [id]);
+      FROM chat_requests WHERE conversation_id=$1 AND invalidated=false ORDER BY started_at DESC LIMIT 1`, [id]);
     return { id, title: conversation.title, model: conversation.model, messages: messages.rows,
       request: pending.rows[0]?.status !== 'complete' ? pending.rows[0] || null : null };
   });
@@ -109,6 +109,7 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
         await client.query('UPDATE user_files SET conversation_id=$1 WHERE id=$2',[id,data.fileId]);
       }
       const previous = (await client.query('SELECT * FROM chat_requests WHERE conversation_id=$1 AND request_id=$2', [id, requestId])).rows[0];
+      if (previous?.invalidated) throw new HttpError(409, 'Razgovor je izmenjen. Pošaljite novu poruku.');
       if (previous && (previous.prompt !== prompt || previous.model !== selectedModel || (previous.image?.content || null) !== (image?.content || null) || (previous.image?.name || null) !== (image?.name || null))) {
         throw new HttpError(409, 'Identifikator slanja već pripada drugoj poruci.');
       }
@@ -364,6 +365,22 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
           return { imported: true };
         });
         return sendJson(response, 200, result);
+      }
+      const messageRoute=pathname.match(/^\/api\/conversations\/([^/]+)\/messages\/([0-9]+)$/);
+      if(messageRoute && request.method==='DELETE') {
+        const conversationId=validId(messageRoute[1]);
+        const messageId=messageRoute[2];
+        if(messageId.length>18)throw new HttpError(400,'Neispravna poruka.');
+        await transaction(pool,async client=>{
+          await owned(client,conversationId,user.id,true);
+          const busy=await client.query("SELECT 1 FROM chat_requests WHERE conversation_id=$1 AND status='pending' AND started_at>now()-interval '150 seconds'",[conversationId]);
+          if(busy.rowCount)throw new HttpError(409,'Sačekajte završetak odgovora pre brisanja poruke.');
+          const deleted=await client.query('DELETE FROM messages WHERE id=$1 AND conversation_id=$2 RETURNING id',[messageId,conversationId]);
+          if(!deleted.rowCount)throw new HttpError(404,'Poruka nije pronađena.');
+          await client.query("UPDATE chat_requests SET invalidated=true,status='complete',prompt='',answer=NULL,error=NULL,image=NULL,file_id=NULL WHERE conversation_id=$1",[conversationId]);
+          await client.query('UPDATE conversations SET updated_at=now() WHERE id=$1',[conversationId]);
+        });
+        return sendJson(response,200,{ok:true});
       }
       const conversation = pathname.match(/^\/api\/conversations\/([^/]+)$/);
       if (conversation) {

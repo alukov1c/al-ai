@@ -10,7 +10,7 @@ test('Nalozi, privatni razgovori i Google identiteti', async (t) => {
   const admin = app.client(), alice = app.client(), bob = app.client(), guest = app.client();
   let aliceId, bobId, conversationId;
   await t.test('Migracije su ponovljive; tajne i anonimni API nisu dostupni', async () => {
-    assert.equal((await app.pool.query('SELECT * FROM schema_migrations')).rowCount, 3);
+    assert.equal((await app.pool.query('SELECT * FROM schema_migrations')).rowCount, 4);
     assert.equal((await guest.request('/healthz')).status, 200);
     for (const file of ['/api.txt','/.env','/db.js','/migrations/001_accounts_conversations.sql']) assert.equal((await guest.request(file)).status, 404);
     assert.equal((await guest.request('/api/conversations')).status, 401);

@@ -232,6 +232,19 @@ function addMessageElement(role, content, messageId, image) {
     }
     bubble.append(controls);
   }
+  if (messageId !== undefined) {
+    const controls = document.createElement('div');controls.className='message-actions';
+    const remove=document.createElement('button');remove.type='button';remove.className='delete-message';remove.textContent='Obriši poruku';remove.dataset.busy='';remove.disabled=isSending || current?.request?.status==='pending';
+    const conversationId=current.id;
+    remove.addEventListener('click',()=>{
+      if(!window.confirm('Obrisati ovu poruku iz razgovora? Prilozi ostaju u biblioteci datoteka.'))return;
+      action(async()=>{
+        await api('/api/conversations/'+conversationId+'/messages/'+messageId,'DELETE',{});
+        retryRequest=null;$('#retryButton').hidden=true;
+        await refreshList();await refreshCurrent();notice('Poruka je obrisana.');
+      });
+    });controls.append(remove);bubble.append(controls);
+  }
   row.append(bubble);
   messagesElement.append(row);
   messagesElement.scrollTop = messagesElement.scrollHeight;

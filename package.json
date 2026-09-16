@@ -11,7 +11,8 @@
     "admin:reset": "node scripts/reset-admin.js",
     "test:ui": "node test/ui-check.js",
     "test:documents-ui": "node test/documents-ui-check.js",
-    "test:images-ui": "node test/images-math-ui.js"
+    "test:images-ui": "node test/images-math-ui.js",
+    "test:message-deletion": "node --test test/message-deletion.test.js"
   },
   "engines": {
     "node": ">=20.16.0 <21 || >=22.3.0"
