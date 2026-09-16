@@ -5,21 +5,39 @@
   "description": "DeepSeek asistent sa privatnim korisničkim razgovorima u PostgreSQL bazi",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --check app.js && node --check auth.js && node --check db.js && node --check google-auth.js && node --check config.js",
-    "test": "node --test test/accounts.test.js test/config.test.js",
+    "check": "node --check server.js && node --check app.js && node --check auth.js && node --check db.js && node --check google-auth.js && node --check config.js && node --check attachments.js && node --check attachment-worker.js && node --check exports.js && node --check export-worker.js && node --check document-export.js",
+    "test": "node --test test/accounts.test.js test/config.test.js test/attachments.test.js",
     "db:migrate": "node scripts/migrate.js",
     "admin:reset": "node scripts/reset-admin.js",
-    "test:ui": "node test/ui-check.js"
+    "test:ui": "node test/ui-check.js",
+    "test:documents-ui": "node test/documents-ui-check.js"
   },
   "engines": {
-    "node": ">=20.12"
+    "node": ">=20.16.0 <21 || >=22.3.0"
   },
   "dependencies": {
+    "dejavu-fonts-ttf": "^2.37.3",
+    "docx": "^9.7.1",
+    "exceljs": "^4.4.0",
+    "fast-xml-parser": "^5.11.1",
     "google-auth-library": "^10.9.1",
-    "pg": "^8.23.0"
+    "jszip": "^3.10.2",
+    "mammoth": "^1.12.3",
+    "pdf-parse": "^2.4.5",
+    "pdfkit": "^0.20.2",
+    "pg": "^8.23.0",
+    "pptxgenjs": "^4.0.1"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
     "playwright": "^1.63.0"
+  },
+  "overrides": {
+    "exceljs": {
+      "uuid": "^11.1.1"
+    },
+    "pptxgenjs": {
+      "image-size": "^2.0.3"
+    }
   }
 }

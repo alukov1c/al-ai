@@ -109,10 +109,11 @@
             <span>A-L istraživanja</span>
           </a>
         </nav>
+        <div class="topbar-options"><button id="settingsButton" class="settings-button" type="button" data-busy aria-label="Podešavanja" title="Podešavanja"><svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m9 3-.5 2.3-2 1.2-2.3-.7-2 3.4L4 11v2l-1.8 1.8 2 3.4 2.3-.7 2 1.2L9 21h4l.5-2.3 2-1.2 2.3.7 2-3.4L18 13v-2l1.8-1.8-2-3.4-2.3.7-2-1.2L13 3z"/><circle cx="11" cy="12" r="3"/></svg></button>
         <select id="modelSelect" data-busy aria-label="Izaberi model">
           <option value="deepseek-flash">V4.1 Flash · Chat</option>
           <option value="deepseek-flash-thinking">V4.1 Flash · Thinking</option>
-        </select>
+        </select></div>
       </header>
 
       <section class="messages" id="messages" aria-live="polite">
@@ -152,15 +153,42 @@
         <button id="retryButton" type="button" data-busy hidden>Ponovi slanje</button>
         <form class="composer" id="chatForm">
           <textarea id="promptInput" rows="1" maxlength="12000" placeholder="Pošaljite poruku AL AI. " aria-label="Poruka"></textarea>
+          <div id="attachmentPreview" class="attachment-preview" hidden><span id="attachmentName"></span><button id="attachmentRemove" type="button" data-busy aria-label="Ukloni prilog">×</button></div>
+          <input id="attachmentInput" type="file" accept=".pdf,.docx,.txt,.md,.csv,.json,.log,.xlsx,.pptx" hidden>
           <div class="composer-bottom">
             <span class="shortcut">Enter za slanje · Shift + Enter za novi red</span>
-            <button class="send-button" id="sendButton" type="submit" data-busy aria-label="Pošalji poruku">➜</button>
+            <div class="composer-actions"><button id="attachButton" class="attach-button" type="button" data-busy aria-label="Priloži dokument" title="Priloži PDF, DOCX, XLSX, PPTX ili tekstualnu datoteku (do 3 MB)"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m8 12 6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l9-9M6 14l8-8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <button class="send-button" id="sendButton" type="submit" data-busy aria-label="Pošalji poruku">➜</button></div>
           </div>
         </form>
         <p class="disclaimer">AL AI može napraviti grešku. Proverite važne informacije.</p>
       </div>
     </main>
   </div>
+
+
+  <dialog id="settingsDialog" class="settings-dialog" aria-labelledby="settingsTitle">
+    <div class="dialog-heading"><h2 id="settingsTitle">Podešavanja</h2><button id="settingsClose" type="button" aria-label="Zatvori podešavanja">×</button></div>
+    <div class="settings-layout">
+      <nav class="settings-nav" aria-label="Kategorije podešavanja">
+        <button type="button" data-settings="profile" aria-current="page">Profil</button>
+        <button type="button" data-settings="analytics">Analiza</button>
+        <button type="button" data-settings="documents">Dokumenti</button>
+      </nav>
+      <div class="settings-content">
+        <section id="settings-profile"><h3>Profil</h3><dl class="profile-details"><dt>Ime</dt><dd id="settingsName"></dd><dt>Korisničko ime</dt><dd id="settingsUsername"></dd><dt>Pristup</dt><dd id="settingsRole"></dd></dl><div class="settings-profile-actions"><button id="settingsPassword" type="button">Promeni lozinku</button><button id="settingsUsers" type="button" hidden>Upravljanje korisnicima</button><button id="settingsLogout" type="button">Odjavi se</button></div></section>
+        <section id="settings-analytics" hidden><h3>Analiza korišćenja</h3><p id="analyticsStatus" role="status"></p><dl class="analytics-grid"><div><dt>Razgovori</dt><dd id="statConversations">—</dd></div><div><dt>Vaše poruke</dt><dd id="statUserMessages">—</dd></div><div><dt>Odgovori asistenta</dt><dd id="statAnswers">—</dd></div><div><dt>Poruke u ovom razgovoru</dt><dd id="statCurrent">—</dd></div></dl><p>Prikaz obuhvata vaše trenutno sačuvane razgovore. Potrošnja tokena i novčani troškovi nisu uključeni.</p><button id="analyticsRefresh" type="button">Osveži statistiku</button></section>
+        <section id="settings-documents" hidden><h3>Dokumenti</h3><form id="documentSettingsForm" class="account-form">
+          <label>Podrazumevani format<select id="documentFormat"><option value="pdf">PDF</option><option value="docx">DOCX — Word</option><option value="pptx">PPTX — PowerPoint</option><option value="xlsx">XLSX — Excel</option></select></label>
+          <label>PDF i DOCX — veličina stranice<select id="documentPage"><option value="A4">A4</option><option value="LETTER">Letter</option></select></label>
+          <label>PDF i DOCX — veličina teksta<select id="documentFont"><option value="10">10 pt</option><option value="11">11 pt</option><option value="12">12 pt</option><option value="14">14 pt</option></select></label>
+          <label>PPTX — odnos stranica<select id="documentSlides"><option value="wide">16:9</option><option value="standard">4:3</option></select></label>
+          <label class="checkbox-label"><input id="documentWrap" type="checkbox">XLSX — prelamanje teksta u ćelijama</label>
+          <button type="submit">Sačuvaj podešavanja</button><p id="documentSettingsStatus" role="status"></p>
+        </form><p>Podešavanja važe za vaš nalog u ovom pregledaču. Prilozi: PDF, DOCX, XLSX, PPTX i tekstualne datoteke, do 3 MB i 40.000 znakova. Čita se tekst; skenirane stranice i slike zahtevaju OCR.</p><button id="exportConversation" type="button" data-busy>Preuzmi sve odgovore ovog razgovora</button></section>
+      </div>
+    </div>
+  </dialog>
 
   <dialog id="passwordDialog" class="account-dialog" aria-labelledby="passwordTitle">
     <div class="dialog-heading"><h2 id="passwordTitle">Moja lozinka</h2><button id="passwordClose" type="button">Zatvori</button></div>
