@@ -12,7 +12,18 @@
     if (!buffer.subarray(0, 5).equals(Buffer.from('%PDF-'))) throw new Error('Datoteka nije ispravan PDF.');
     const { PDFParse } = require('pdf-parse');
     const parser = new PDFParse({ data: buffer, isEvalSupported: false });
-    try { text = (await parser.getText()).text; } finally { await parser.destroy(); }
+    try {
+      if (workerData.preview) {
+        const info = await parser.getInfo({parsePageInfo:true, partial:[workerData.page]});
+        if (workerData.page > info.total) throw new Error('Dokument nema traženu stranicu.');
+        const size = info.pages[0];
+        const scale = Math.min(2, 1100 / (size?.width || 612), 1600 / (size?.height || 792));
+        const result = await parser.getScreenshot({scale, partial:[workerData.page]});
+        process.send({kind:'pdf', page:workerData.page, pages:info.total, image:'data:image/png;base64,'+Buffer.from(result.pages[0].data).toString('base64')});
+        return;
+      }
+      text = (await parser.getText()).text;
+    } finally { await parser.destroy(); }
   } else if (workerData.extension === '.docx') {
     text = (await require('mammoth').extractRawText({ buffer }, { externalFileAccess: false })).value;
   } else if (workerData.extension === '.xlsx') {

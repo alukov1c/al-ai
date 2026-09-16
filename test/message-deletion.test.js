@@ -22,5 +22,12 @@ test('Brisanje pojedinačnih poruka i zaštita istorije',async t=>{
  page.once('dialog',d=>d.accept());await page.locator('.assistant .delete-message').click();await page.locator('#welcome').waitFor({state:'visible'});
  assert.equal((await admin.request('/api/conversations/'+conv.id)).data.conversation.messages.length,0);
  const fresh={...attempt,requestId:randomUUID(),prompt:'Novo pitanje'};assert.equal((await admin.request('/api/chat','POST',fresh)).status,200);assert.equal(app.calls.at(-1).messages.length,1);assert.equal(app.calls.at(-1).messages[0].content,'Novo pitanje');
+
+ for(let i=0;i<24;i++)await app.pool.query("INSERT INTO messages(conversation_id,role,content) VALUES($1,'assistant',$2)",[conv.id,'Poruka '+i+' — '+ 'Sadržaj za proveru položaja. '.repeat(15)]);
+ await page.reload();await page.waitForFunction(()=>document.querySelectorAll('.message-row').length===26);
+ const middle=page.locator('.message-row').nth(12);await middle.scrollIntoViewIfNeeded();await page.waitForTimeout(400);const before=await middle.boundingBox();
+ page.once('dialog',d=>d.accept());await middle.locator('.delete-message').click();await page.waitForFunction(()=>document.querySelectorAll('.message-row').length===25);await page.waitForTimeout(400);
+ const after=await page.locator('.message-row').nth(12).boundingBox();assert(Math.abs(after.y-Math.max(before.y,await page.locator('#messages').evaluate(e=>e.getBoundingClientRect().top)))<5,'Scroll position changed');
+ assert(await page.locator('#messages').evaluate(e=>e.scrollTop+e.clientHeight<e.scrollHeight-1000),'Jumped to conversation end');
  }finally{await browser.close();}
 });

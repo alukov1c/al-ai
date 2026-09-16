@@ -237,8 +237,15 @@
     <p id="googleLinkNotice" class="form-message" role="status"></p>
     <div id="googleLinkButton"></div>
   </dialog>
+  <dialog id="filePreviewDialog" class="file-preview-dialog" aria-labelledby="filePreviewTitle">
+    <div class="dialog-heading"><h2 id="filePreviewTitle">Pregled</h2><button id="filePreviewClose" type="button">Zatvori</button></div>
+    <p id="filePreviewStatus" role="status"></p>
+    <div class="file-preview-content"><img id="filePreviewImage" alt="" hidden><pre id="filePreviewText" hidden></pre></div>
+    <div id="filePreviewPages" class="file-card-actions" hidden><button id="filePreviewPrevious" type="button">Prethodna</button><span id="filePreviewPage"></span><button id="filePreviewNext" type="button">Sledeća</button></div>
+  </dialog>
   <script src="/vendor/katex/katex.min.js" defer></script>
   <script src="/vendor/katex/contrib/auto-render.min.js" defer></script>
+  <script src="math-format.js" defer></script>
   <script src="app.js" defer></script>
 </body>
 </html>

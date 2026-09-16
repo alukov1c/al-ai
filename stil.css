@@ -246,7 +246,7 @@ button {
 .new-chat {
 
     width:100%;
-    padding:.75em 1em;
+    padding:.375em 1em;
     border:1px solid var(--cyan);
     border-radius:1em;
     background:#fff;
@@ -285,7 +285,7 @@ button {
 .history-item {
 
     width:100%;
-    padding:11px 12px;
+    padding:5.5px 12px;
     overflow:hidden;
     border:1px solid transparent;
     border-radius:.8em;
@@ -1134,7 +1134,7 @@ textarea::placeholder {
     display:grid;
     grid-template-columns:minmax(0,1fr) 30px 30px;
     align-items:center;
-    margin-bottom:4px;
+    margin-bottom:2px;
     border:1px solid transparent;
     border-radius:.8em;
     transition:.2s
@@ -1451,3 +1451,7 @@ textarea::placeholder {
 .delete-message { border:1px solid #e4cbd0; border-radius:7px; background:transparent; color:#9f3346; padding:5px 9px; font-size:11px; cursor:pointer; }
 .delete-message:hover { background:#fff1f2; }
 .delete-message:disabled { opacity:.45; cursor:default; }
+
+.file-preview-dialog{width:min(1000px,calc(100vw - 32px));max-height:calc(100dvh - 32px);box-sizing:border-box;border:1px solid #cbd5e1;border-radius:20px;padding:22px;color:#334155;background:#fff}.file-preview-dialog::backdrop{background:#0f172a77}.file-preview-content{overflow:auto;max-height:65dvh}.file-preview-content img{display:block;max-width:100%;height:auto;margin:auto}.file-preview-content [hidden],#filePreviewPages[hidden]{display:none}.file-preview-content pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit}.file-preview-dialog h2{overflow-wrap:anywhere;min-width:0}.file-preview-dialog .dialog-heading{gap:12px}.file-preview-dialog .dialog-heading button{flex-shrink:0}#filePreviewPages{margin-top:14px;align-items:center;justify-content:center}
+
+.file-preview-dialog button{padding:8px 12px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;color:#1d4ed8;cursor:pointer}.file-preview-dialog button:disabled{opacity:.45;cursor:default}

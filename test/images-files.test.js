@@ -16,5 +16,8 @@ test('Slike, istorija, privatna biblioteka i brisanje',async t=>{
  assert.equal((await admin.request('/api/files/'+upload.data.fileId,'DELETE',{})).status,200);assert.equal((await admin.request('/api/files/'+upload.data.fileId)).status,404);
  assert.equal((await admin.request('/api/conversations/'+conv.id)).data.conversation.messages[0].image,null);
  const text=await admin.request('/api/attachments/extract','POST',{name:'text.txt',content:Buffer.from('Document content').toString('base64')});assert.equal((await admin.request('/api/files/'+text.data.fileId)).data,'Document content');
+ assert.equal((await admin.request('/api/files/'+text.data.fileId+'/preview')).data.text,'Document content');
+ assert.equal((await other.request('/api/files/'+text.data.fileId+'/preview')).status,404);
+ assert.equal((await guest.request('/api/files/'+text.data.fileId+'/preview')).status,401);
  assert.equal((await admin.request('/api/attachments/extract','POST',{name:'bad.png',content:Buffer.from('<svg/>').toString('base64')})).status,400);
 });

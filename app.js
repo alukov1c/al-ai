@@ -241,7 +241,17 @@ function addMessageElement(role, content, messageId, image) {
       action(async()=>{
         await api('/api/conversations/'+conversationId+'/messages/'+messageId,'DELETE',{});
         retryRequest=null;$('#retryButton').hidden=true;
-        await refreshList();await refreshCurrent();notice('Poruka je obrisana.');
+        const next=row.nextElementSibling, previous=row.previousElementSibling;
+        const anchor=next || previous;
+        const top=next ? Math.max(messagesElement.getBoundingClientRect().top,row.getBoundingClientRect().top) : previous?.getBoundingClientRect().top;
+        const scroll=messagesElement.scrollTop;
+        current.messages=current.messages.filter(message=>String(message.id)!==String(messageId));
+        current.request=null;
+        row.remove();
+        if(!current.messages.length)messagesElement.append(welcomeElement);
+        messagesElement.scrollTo({top:anchor?messagesElement.scrollTop+anchor.getBoundingClientRect().top-top:scroll,behavior:'instant'});
+        notice('Poruka je obrisana.');
+        await refreshList();
       });
     });controls.append(remove);bubble.append(controls);
   }
@@ -279,6 +289,7 @@ function splitTableRow(line) {
 }
 
 function renderAssistantContent(container, content) {
+  content = window.normalizeBareMath ? window.normalizeBareMath(content) : content;
   const lines = content.replace(/\r\n/g, '\n').split('\n');
   let codeBlock = null;
   let list = null;
@@ -842,6 +853,7 @@ async function refreshFileLibrary(category) {
       const meta=document.createElement('p');meta.textContent=(file.direction==='export'?'Izvoz':'Uvoz')+' · '+Math.max(1,Math.round(file.bytes/1024))+' KB · '+new Date(file.created_at).toLocaleDateString('sr')+' · '+(file.title || 'Još nije poslato u razgovor');card.append(meta);
       const controls=document.createElement('div');controls.className='file-card-actions';
       const download=document.createElement('a');download.href='/api/files/'+file.id;download.download=file.name;download.textContent='Preuzmi';controls.append(download);
+      const preview=document.createElement('button');preview.type='button';preview.textContent='Prikaži';preview.addEventListener('click',()=>openFilePreview(file));controls.append(preview);
       const remove=document.createElement('button');remove.type='button';remove.textContent='Obriši';remove.dataset.busy='';remove.disabled=isSending;
       remove.addEventListener('click',async()=>{
         if(!window.confirm(images?'Obrisati sliku i ukloniti je iz razgovora?':'Obrisati sačuvanu datoteku? Tekst u razgovoru ostaje.'))return;
@@ -853,3 +865,29 @@ async function refreshFileLibrary(category) {
 $('#imagesRefresh').addEventListener('click',()=>refreshFileLibrary('images'));
 $('#filesRefresh').addEventListener('click',()=>refreshFileLibrary('files'));
 $('#filesFilter').addEventListener('change',()=>refreshFileLibrary('files'));
+
+let previewVersion=0, previewFile=null, previewPage=1;
+function clearFilePreview(){previewVersion++;previewFile=null;$('#filePreviewImage').removeAttribute('src');$('#filePreviewImage').hidden=true;$('#filePreviewText').textContent='';$('#filePreviewText').hidden=true;$('#filePreviewPages').hidden=true;}
+async function openFilePreview(file,page=1){
+ const version=++previewVersion, session=epoch;previewFile=file;previewPage=page;
+ $('#filePreviewTitle').textContent=file.name;$('#filePreviewStatus').textContent='Učitavanje pregleda…';
+ $('#filePreviewImage').hidden=true;$('#filePreviewImage').removeAttribute('src');$('#filePreviewText').hidden=true;$('#filePreviewText').textContent='';$('#filePreviewPages').hidden=true;
+ const dialog=$('#filePreviewDialog');if(!dialog.open)dialog.showModal();
+ try{
+  if(file.kind==='image'){
+   const img=$('#filePreviewImage');img.onload=()=>{if(version===previewVersion)$('#filePreviewStatus').textContent='';};img.onerror=()=>{if(version===previewVersion)$('#filePreviewStatus').textContent='Slika nije dostupna.';};img.alt=file.name;img.src='/api/files/'+file.id;img.hidden=false;return;
+  }
+  const result=await api('/api/files/'+file.id+'/preview?page='+page);
+  if(version!==previewVersion||session!==epoch||!dialog.open)return;
+  if(result.kind==='pdf'){
+   const img=$('#filePreviewImage');img.onload=null;img.onerror=null;img.src=result.image;img.alt=file.name+' — stranica '+result.page;img.hidden=false;
+   $('#filePreviewStatus').textContent='Pregled PDF stranice';$('#filePreviewPage').textContent=result.page+' / '+result.pages;
+   $('#filePreviewPrevious').disabled=page<=1;$('#filePreviewNext').disabled=page>=result.pages;$('#filePreviewPages').hidden=false;
+  }else{$('#filePreviewText').textContent=result.text;$('#filePreviewText').hidden=false;$('#filePreviewStatus').textContent='Tekstualni pregled — raspored i ugrađene slike originalnog dokumenta nisu prikazani.';}
+  $('.file-preview-content').scrollTop=0;
+ }catch(error){if(version===previewVersion&&session===epoch)$('#filePreviewStatus').textContent=error.message;}
+}
+$('#filePreviewClose').addEventListener('click',()=>$('#filePreviewDialog').close());
+$('#filePreviewDialog').addEventListener('close',clearFilePreview);
+$('#filePreviewPrevious').addEventListener('click',()=>openFilePreview(previewFile,previewPage-1));
+$('#filePreviewNext').addEventListener('click',()=>openFilePreview(previewFile,previewPage+1));

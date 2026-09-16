@@ -1,3 +1,4 @@
+const {normalizeBareMath}=require('./math-format');
 ﻿const path = require('node:path');
 function plain(value) { return value.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/`([^`]+)`/g, '$1'); }
 function cells(line) { return line.trim().replace(/^\|/, '').replace(/\|$/, '').split(/(?<!\\)\|/).map(s => plain(s.trim().replace(/\\\|/g, '|'))); }
@@ -7,12 +8,19 @@ function blocks(text) {
   for (let i=0;i<lines.length;i++) {
     const line = lines[i];
     if (line.startsWith('```')) { code = !code; continue; }
+    if (!code && (line.trim().startsWith('$$') || line.trim().startsWith('\\['))) {
+      const delimiter=line.trim().startsWith('$$')?'$$':'\\]';
+      if(!line.trim().slice(2).includes(delimiter)) {
+        let end=i+1;while(end<lines.length && !lines[end].includes(delimiter))end++;
+        if(end<lines.length){result.push({type:'text',text:lines.slice(i,end+1).join('\n')});i=end;continue;}
+      }
+    }
     const next = cells(lines[i+1] || '');
     if (!code && line.includes('|') && next.every(c => /^:?-{3,}:?$/.test(c)) && next.length === cells(line).length) {
       const rows = [cells(line)]; i++;
       while (i+1<lines.length && lines[i+1].trim() && lines[i+1].includes('|')) rows.push(cells(lines[++i]));
       result.push({type:'table',rows});
-    } else if (line.trim()) result.push({type: !code && /^#{1,6}\s/.test(line) ? 'heading' : 'text', text: code ? line : plain(line.replace(/^#{1,6}\s+/, ''))});
+    } else if (line.trim()) result.push({type: !code && /^#{1,6}\s/.test(line) ? 'heading' : 'text', code, text: code ? line : plain(line.replace(/^#{1,6}\s+/, ''))});
   }
   return result;
 }
@@ -21,7 +29,7 @@ async function generateDocument({ format, title, content, settings = {} }) {
   const font = [10,11,12,14].includes(settings?.font) ? settings.font : 11;
   const wide = settings?.slides !== 'standard';
   const wrap = settings?.wrap !== false;
-  const parts = blocks(content);
+  const parts = blocks(format === 'pdf' ? normalizeBareMath(content) : content);
   if (format === 'docx') {
     const d = require('docx');
     const children = [new d.Paragraph({ text:title, heading:d.HeadingLevel.TITLE })];
@@ -84,12 +92,10 @@ async function generateDocument({ format, title, content, settings = {} }) {
       doc.on('data',c=>chunks.push(c));doc.on('end',()=>resolve(Buffer.concat(chunks)));doc.on('error',reject);
       doc.font(path.join(path.dirname(require.resolve('dejavu-fonts-ttf/package.json')),'ttf/DejaVuSans.ttf'));
       doc.fontSize(20).fillColor('#1E40AF').text(title).moveDown();
+      const {writeParagraph,writeTable}=require('./pdf-math');
       for(const part of parts){
-        if(part.type==='table') {
-          doc.fontSize(9).fillColor('#243247');
-          doc.table({data:part.rows,border:1,defaultStyle:{border:1,borderColor:'#CBD7EB',padding:5},rowStyles:i=>i===0?{backgroundColor:'#EAF1FF'}:{}});
-          doc.moveDown();
-        } else doc.fontSize(part.type==='heading'?font+3:font).fillColor(part.type==='heading'?'#1E40AF':'#243247').text(part.text,{lineGap:3}).moveDown(.6);
+        if(part.type==='table')writeTable(doc,part.rows,9);
+        else if(!/^[-_*]{3,}$/.test(part.text.trim()))writeParagraph(doc,part.text,part.type==='heading'?font+3:font,{code:part.code,color:part.type==='heading'?'#1E40AF':'#243247'});
       }
       doc.end();
     });

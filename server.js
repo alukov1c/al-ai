@@ -1,3 +1,4 @@
+const {previewFile}=require('./file-preview');
 const {saveFile,mimeTypes} = require('./files');
 const { validateImage, visionMessages } = require('./images');
 const { exportDocument } = require('./exports');
@@ -17,6 +18,7 @@ const publicFiles = new Map([
   ['/index.html', ['index.html', 'text/html; charset=utf-8']],
   ['/stil.css', ['stil.css', 'text/css; charset=utf-8']],
   ['/accounts.css', ['accounts.css', 'text/css; charset=utf-8']],
+  ['/math-format.js', ['math-format.js','text/javascript; charset=utf-8']],
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
   ['/AL-AI.svg', ['AL-AI.svg', 'image/svg+xml']]
 ]);
@@ -254,6 +256,12 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
       if (pathname === '/api/files' && request.method === 'GET') {
         const files=await pool.query('SELECT f.id,f.name,f.kind,f.direction,f.mime,f.created_at,f.conversation_id,c.title,octet_length(f.content) AS bytes FROM user_files f LEFT JOIN conversations c ON c.id=f.conversation_id WHERE f.user_id=$1 ORDER BY f.created_at DESC',[user.id]);
         return sendJson(response,200,{files:files.rows});
+      }
+      const previewRoute=pathname.match(/^\/api\/files\/([0-9a-f-]+)\/preview$/i);
+      if(previewRoute && request.method==='GET') {
+        const file=(await pool.query('SELECT * FROM user_files WHERE id=$1 AND user_id=$2',[validId(previewRoute[1]),user.id])).rows[0];
+        if(!file)throw new HttpError(404,'Datoteka nije pronađena.');
+        return sendJson(response,200,await previewFile(file,Number(new URL(request.url,'http://localhost').searchParams.get('page')||1)));
       }
       const fileRoute=pathname.match(/^\/api\/files\/([0-9a-f-]+)$/i);
       if(fileRoute) {
