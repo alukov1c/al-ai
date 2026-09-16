@@ -5,12 +5,13 @@
   "description": "DeepSeek asistent sa privatnim korisničkim razgovorima u PostgreSQL bazi",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --check app.js && node --check auth.js && node --check db.js && node --check google-auth.js && node --check config.js && node --check attachments.js && node --check attachment-worker.js && node --check exports.js && node --check export-worker.js && node --check document-export.js",
-    "test": "node --test test/accounts.test.js test/config.test.js test/attachments.test.js",
+    "check": "node --check server.js && node --check app.js && node --check auth.js && node --check db.js && node --check google-auth.js && node --check config.js && node --check attachments.js && node --check attachment-worker.js && node --check exports.js && node --check export-worker.js && node --check document-export.js && node --check images.js && node --check files.js",
+    "test": "node --test --test-concurrency=1 test/accounts.test.js test/config.test.js test/attachments.test.js test/images-files.test.js",
     "db:migrate": "node scripts/migrate.js",
     "admin:reset": "node scripts/reset-admin.js",
     "test:ui": "node test/ui-check.js",
-    "test:documents-ui": "node test/documents-ui-check.js"
+    "test:documents-ui": "node test/documents-ui-check.js",
+    "test:images-ui": "node test/images-math-ui.js"
   },
   "engines": {
     "node": ">=20.16.0 <21 || >=22.3.0"
@@ -22,11 +23,13 @@
     "fast-xml-parser": "^5.11.1",
     "google-auth-library": "^10.9.1",
     "jszip": "^3.10.2",
+    "katex": "^0.18.7",
     "mammoth": "^1.12.3",
     "pdf-parse": "^2.4.5",
     "pdfkit": "^0.20.2",
     "pg": "^8.23.0",
-    "pptxgenjs": "^4.0.1"
+    "pptxgenjs": "^4.0.1",
+    "sharp": "^0.35.4"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
@@ -38,6 +41,9 @@
     },
     "pptxgenjs": {
       "image-size": "^2.0.3"
+    },
+    "katex": {
+      "commander": "^14.0.0"
     }
   }
 }

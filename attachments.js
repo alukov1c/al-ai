@@ -1,3 +1,4 @@
+const { prepareImage } = require('./images');
 ﻿const { fork } = require('node:child_process');
 const path = require('node:path');
 const { HttpError } = require('./auth');
@@ -6,13 +7,14 @@ async function extractAttachment(data) {
   const name = typeof data.name === 'string' ? data.name.trim() : '';
   const extension = path.extname(name).toLowerCase();
   if (!name || name.length > 180 || /[\x00-\x1f/\\]/.test(name)) throw new HttpError(400, 'Neispravan naziv datoteke.');
-  if (!['.pdf','.docx','.txt','.md','.csv','.json','.log','.xlsx','.pptx'].includes(extension)) throw new HttpError(415, 'Podržani su PDF, DOCX, TXT, MD, CSV, JSON, LOG, XLSX i PPTX.');
+  if (!['.pdf','.docx','.txt','.md','.csv','.json','.log','.xlsx','.pptx','.png','.jpg','.jpeg','.webp','.gif'].includes(extension)) throw new HttpError(415, 'Podržani su PDF, DOCX, TXT, MD, CSV, JSON, LOG, XLSX, PPTX i slike PNG/JPG/WebP/GIF.');
   if (typeof data.content !== 'string' || data.content.length > 4_000_000 || (data.content.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(data.content))) throw new HttpError(413, 'Datoteka može imati najviše 3 MB.');
   const buffer = Buffer.from(data.content, 'base64');
   if (!buffer.length || buffer.length > 3_000_000) throw new HttpError(400, 'Datoteka je prazna ili prevelika.');
   if (active >= 2) throw new HttpError(429, 'Obrada dokumenata je zauzeta. Pokušajte ponovo.');
   active++;
   try {
+    if (['.png','.jpg','.jpeg','.webp','.gif'].includes(extension)) { const image=await prepareImage(name,buffer); return {name:image.name,kind:'image',image}; }
     return await new Promise((resolve, reject) => {
       const worker = fork(path.join(__dirname, 'attachment-worker.js'), [], { execArgv:['--max-old-space-size=128'], stdio:['ignore','ignore','ignore','ipc'] });
       let done = false;

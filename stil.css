@@ -1429,3 +1429,20 @@ textarea::placeholder {
 .message-attachment { margin-top:12px; padding-top:8px; border-top:1px solid #cbd7eb; }
 .message-attachment summary { cursor:pointer; font-weight:600; overflow-wrap:anywhere; }
 .message-attachment > div { max-height:300px; overflow:auto; margin-top:10px; font-size:12px; white-space:pre-wrap; }
+
+.attachment-thumbnail { width:56px; height:56px; object-fit:contain; border-radius:6px; background:#fff; }
+.attachment-thumbnail[hidden] { display:none; }
+.message-image { display:block; max-width:100%; max-height:420px; margin-top:12px; border-radius:10px; object-fit:contain; }
+.bubble .katex { font-size:1.12em; white-space:normal; }
+.bubble .katex-display { overflow-x:auto; overflow-y:hidden; padding:12px 6px; margin:14px 0; max-width:100%; white-space:nowrap; }
+.bubble .katex-display > .katex { white-space:nowrap; }
+
+.file-gallery { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.file-library { display:grid; gap:12px; margin-top:12px; }
+.file-card { border:1px solid #dbe3ef; border-radius:10px; padding:12px; min-width:0; }
+.file-card > img { width:100%; height:130px; object-fit:contain; background:#f5f8ff; border-radius:6px; margin-bottom:8px; }
+.file-card strong { display:block; overflow-wrap:anywhere; font-size:13px; }
+.file-card p { overflow-wrap:anywhere; font-size:11px; }
+.file-card-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.file-card-actions a { color:#1e40af; font-size:13px; text-decoration:none; border:1px solid #cbd7eb; border-radius:9px; padding:9px 12px; }
+@media(max-width:700px){.settings-nav { flex-wrap:wrap; }.settings-nav button { flex:1 0 28%; }.file-gallery { grid-template-columns:1fr; }}

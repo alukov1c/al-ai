@@ -1,0 +1,20 @@
+﻿const {test}=require('node:test');const assert=require('node:assert/strict');const {randomUUID}=require('node:crypto');const sharp=require('sharp');const {fixture}=require('./fixture');
+test('Slike, istorija, privatna biblioteka i brisanje',async t=>{
+ const app=await fixture();t.after(()=>app.close());const admin=app.client(),guest=app.client();await admin.login('admin','Admin-password-test-123');
+ const png=await sharp({create:{width:80,height:60,channels:3,background:'#2563eb'}}).png().toBuffer();
+ const upload=await admin.request('/api/attachments/extract','POST',{name:'slika.png',content:png.toString('base64')});assert.equal(upload.status,200);assert.equal(upload.data.kind,'image');
+ assert.equal((await guest.request('/api/files/'+upload.data.fileId)).status,401);
+ const conv=(await admin.request('/api/conversations','POST',{model:'deepseek-flash'})).data.conversation;
+ const attempt={conversationId:conv.id,requestId:randomUUID(),prompt:'Opiši sliku',model:'deepseek-flash',image:upload.data.image,fileId:upload.data.fileId};
+ assert.equal((await admin.request('/api/chat','POST',attempt)).status,200);
+ assert.equal(app.calls[0].messages[0].content[1].type,'image_url');assert.match(app.calls[0].messages[0].content[1].image_url.url,/^data:image\/jpeg;base64,/);
+ assert.equal((await admin.request('/api/chat','POST',attempt)).status,200);assert.equal(app.calls.length,1);
+ const history=(await admin.request('/api/conversations/'+conv.id)).data.conversation;assert.equal(history.messages[0].image.mime,'image/jpeg');
+ await admin.request('/api/admin/users','POST',{username:'otherimage',displayName:'Other',password:'Initial-password-123'});const other=app.client();await other.login('otherimage','Initial-password-123');await other.request('/api/password','POST',{currentPassword:'Initial-password-123',password:'Changed-password-123'});await other.login('otherimage','Changed-password-123');
+ assert.equal((await other.request('/api/files')).data.files.length,0);assert.equal((await other.request('/api/files/'+upload.data.fileId)).status,404);assert.equal((await other.request('/api/files/'+upload.data.fileId,'DELETE',{})).status,404);
+ assert.equal((await admin.request('/api/files')).data.files.length,1);
+ assert.equal((await admin.request('/api/files/'+upload.data.fileId,'DELETE',{})).status,200);assert.equal((await admin.request('/api/files/'+upload.data.fileId)).status,404);
+ assert.equal((await admin.request('/api/conversations/'+conv.id)).data.conversation.messages[0].image,null);
+ const text=await admin.request('/api/attachments/extract','POST',{name:'text.txt',content:Buffer.from('Document content').toString('base64')});assert.equal((await admin.request('/api/files/'+text.data.fileId)).data,'Document content');
+ assert.equal((await admin.request('/api/attachments/extract','POST',{name:'bad.png',content:Buffer.from('<svg/>').toString('base64')})).status,400);
+});
