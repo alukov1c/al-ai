@@ -1,0 +1,94 @@
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const { chromium } = require('playwright');
+const { fixture } = require('./fixture');
+
+test('Generation timer, persisted duration, answer start and overflowing titles', async t => {
+  const app = await fixture();
+  let release = () => {};
+  let browser;
+  t.after(async () => { release(); if (browser) await browser.close(); await app.close(); });
+  const executablePath = ['C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'].find(fs.existsSync);
+  browser = await chromium.launch({ executablePath, headless:true });
+  const page = await browser.newPage({ viewport:{ width:1440, height:900 } });
+  const errors=[];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.route('https://accounts.google.com/**', r=>r.abort());
+  await page.route('https://fonts.googleapis.com/**', r=>r.abort());
+  const answer = 'Početak dugog odgovora.\n\n' + Array.from({length:65},(_,i)=>'Pasus '+i+'. Sadržaj odgovora za proveru položaja pri čitanju.').join('\n\n');
+  const gate = new Promise(resolve => { release=resolve; });
+  app.setUpstream(async()=>{await gate;return {ok:true,json:async()=>({choices:[{message:{content:answer},finish_reason:'stop'}]})};});
+  await page.goto(app.origin);
+  await page.locator('#loginUsername').fill('admin');
+  await page.locator('#loginPassword').fill('Admin-password-test-123');
+  await page.locator('#loginSubmit').click();
+  await page.locator('.app-shell').waitFor({state:'visible'});
+  await page.locator('#promptInput').fill('Provera generisanja dugog odgovora');
+  await page.locator('#sendButton').click();
+  await page.waitForFunction(()=>/Rad [1-9]\d*s/.test(document.querySelector('#appNotice').textContent));
+  const admin=app.client(); await admin.login('admin','Admin-password-test-123');
+  const id=(await admin.request('/api/conversations')).data.conversations[0].id;
+  const pending=(await admin.request('/api/conversations/'+id)).data.conversation.request;
+  assert.equal(pending.status,'pending'); assert.ok(Number.isFinite(Date.parse(pending.startedAt)));
+  // Reopening the page during generation resumes the counter from the saved request.
+  await page.reload();
+  await page.waitForFunction(()=>/Rad [1-9]\d*s/.test(document.querySelector('#appNotice').textContent));
+  release();
+  await page.locator('.generation-duration').waitFor();
+  const saved=(await admin.request('/api/conversations/'+id)).data.conversation;
+  assert.ok(saved.messages[1].generationMs>=1000);
+  assert.equal(saved.messages[0].generationMs,null);
+  assert.equal(await page.locator('.generation-duration').textContent(), 'Generisano za '+Math.round(saved.messages[1].generationMs/1000)+' s');
+  const assertStart=async()=>{
+    await page.waitForTimeout(300);
+    const delta=await page.evaluate(()=>document.querySelector('.assistant').getBoundingClientRect().top-document.querySelector('#messages').getBoundingClientRect().top);
+    assert.ok(Math.abs(delta)<3,'Answer start offset: '+delta);
+  };
+  await assertStart();
+  await page.waitForTimeout(1100);
+  assert.ok(!(await page.locator('#appNotice').textContent()).includes('Rad '));
+  await page.reload(); await page.locator('.generation-duration').waitFor(); await assertStart();
+  // A subsequent response through the normal sending path also opens at its beginning.
+  app.setUpstream(async()=>({ok:true,json:async()=>({choices:[{message:{content:answer},finish_reason:'stop'}]})}));
+  await page.locator('#promptInput').fill('Drugi odgovor'); await page.locator('#sendButton').click();
+  await page.waitForFunction(()=>document.querySelectorAll('.assistant').length===2);
+  await page.waitForTimeout(300);
+  const lastOffset=await page.evaluate(()=>document.querySelectorAll('.assistant')[1].getBoundingClientRect().top-document.querySelector('#messages').getBoundingClientRect().top);
+  assert.ok(Math.abs(lastOffset)<3,'New answer start offset: '+lastOffset);
+  const title='Veoma dugačak naziv razgovora koji se prikazuje u celosti animacijom slova';
+  assert.equal((await admin.request('/api/conversations/'+id,'PATCH',{title})).status,200);
+  await page.reload(); await page.locator('.history-item.title-overflow').waitFor();
+  const item=page.locator('.history-item').first();
+  await item.hover();
+  assert.equal(await item.locator('.history-title').evaluate(e=>getComputedStyle(e).animationName),'history-title-scroll');
+  const animation=await item.locator('.history-title').evaluate(e=>{const a=e.getAnimations()[0];a.pause();a.currentTime=2000;return getComputedStyle(e).transform;});
+  assert.notEqual(animation,'none');
+  await page.mouse.move(1000,20); await page.locator('#promptInput').focus();
+  assert.equal(await item.locator('.history-title').evaluate(e=>getComputedStyle(e).animationName),'none');
+  for(const width of [1440,768,390]) {
+    await page.setViewportSize({width,height:900});
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+    const footer=page.locator('.assistant .message-actions').last();
+    const duration=await footer.locator('.generation-duration').boundingBox();
+    const remove=await footer.locator('.delete-message').boundingBox();
+    assert.ok(duration.x+duration.width<=remove.x+1, 'Duration must be left of delete at '+width);
+    assert.ok(Math.abs(duration.y+duration.height/2-remove.y-remove.height/2)<3, 'Footer must share a row at '+width);
+    await footer.scrollIntoViewIfNeeded();
+    await page.screenshot({path:'test-artifacts/generation-'+width+'.png',animations:'disabled'});
+  }
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await page.setViewportSize({width:1440,height:900}); await item.hover();
+  assert.equal(await item.locator('.history-title').evaluate(e=>getComputedStyle(e).animationName),'none');
+  assert.equal(await page.evaluate(()=>generationDuration(125000)),'2 min 5 s');
+  // Failure and retry stop/restart the counter and preserve the failure notice.
+  app.setUpstream(async()=>({ok:false,status:502}));
+  await page.locator('#promptInput').fill('Neuspešan odgovor'); await page.locator('#sendButton').click();
+  await page.locator('#retryButton').waitFor({state:'visible'});
+  await page.waitForTimeout(1100);
+  assert.ok(!(await page.locator('#appNotice').textContent()).includes('Rad '));
+  assert.match(await page.locator('#appNotice').textContent(),/DeepSeek/);
+  app.setUpstream(async()=>({ok:true,json:async()=>({choices:[{message:{content:'Uspešno ponovljen odgovor.'},finish_reason:'stop'}]})}));
+  await page.locator('#retryButton').click(); await page.getByText('Uspešno ponovljen odgovor.',{exact:true}).waitFor();
+  assert.equal(errors.length,0,errors.join('\n'));
+});

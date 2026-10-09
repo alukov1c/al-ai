@@ -1,0 +1,69 @@
+# Lokalna podešavanja i tajne
+.env
+.env.*
+!.env.example
+api.txt
+secrets/
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Zavisnosti i keš
+node_modules/
+.npm-cache/
+.npm/
+.cache/
+.pnpm-store/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/install-state.gz
+
+# Logovi i dijagnostika
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.stackdump
+report.*.json
+
+# Rezultati provera i lokalni izveštaji
+test-artifacts/
+test-results/
+playwright-report/
+playwright/.cache/
+coverage/
+.nyc_output/
+
+# Generisani izlazi i privremene datoteke
+/dist/
+/build/
+/tmp/
+/temp/
+*.tmp
+*.temp
+*.bak
+*~
+
+# Lokalne baze
+.pglite/
+pglite-data/
+/*.sqlite
+/*.sqlite3
+/*.db
+
+# Lokalna podešavanja editora i operativnog sistema
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Postojeća lokalna dokumentacija
+README.md
+RENDER-POKRETANJE.md
+
+# JavaScript datoteke
+*.js

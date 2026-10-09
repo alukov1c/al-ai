@@ -1,0 +1,132 @@
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const sharp=require('sharp');
+const {randomUUID}=require('node:crypto');
+const {chromium}=require('playwright');
+const {fixture}=require('./fixture');
+const {calculateStreaks}=require('../activity');
+const {parseProfileDocument,replaceProfileMemories}=require('../memory');
+
+test('Consecutive days handle gaps, duplicate days and calendar boundaries',()=>{
+  assert.deepEqual(calculateStreaks([], '2026-10-09'),{current:0,longest:0,totalActiveDays:0});
+  assert.deepEqual(calculateStreaks(['2026-10-06','2026-10-08','2026-10-07','2026-10-08'],'2026-10-09'),{current:3,longest:3,totalActiveDays:3});
+  assert.equal(calculateStreaks(['2026-10-06','2026-10-07'],'2026-10-09').current,0);
+  assert.equal(calculateStreaks(['2025-12-31','2026-01-01'],'2026-01-01').current,2);
+  assert.equal(calculateStreaks(['2026-03-28','2026-03-29','2026-03-30'],'2026-03-30').current,3);
+  const days=Array.from({length:400},(_,i)=>new Date(Date.UTC(2025,0,1)+i*86400000).toISOString().slice(0,10));
+  assert.equal(calculateStreaks(days,days.at(-1)).longest,400);
+});
+
+test('Editable memory document parses paragraphs and preserves unchanged entries',()=>{
+  assert.deepEqual(parseProfileDocument('1. Radim kao profesor.\n\n2. Koristim Node.js.'),['Radim kao profesor.','Koristim Node.js.']);
+  assert.deepEqual(parseProfileDocument('Prva stavka\n\nDruga stavka'),['Prva stavka','Druga stavka']);
+  assert.deepEqual(parseProfileDocument(''),[]);
+  assert.throws(()=>parseProfileDocument('x'.repeat(501)));
+  assert.throws(()=>parseProfileDocument(Array(51).fill('stavka').join('\n\n')));
+  const existing=[{id:'original',content:'Koristim Node.js.',source:'conversation'}];
+  const result=replaceProfileMemories(existing,['Koristim Node.js.','Radim kao programer.','radim kao programer.']);
+  assert.equal(result.length,2);assert.deepEqual(result[0],existing[0]);assert.equal(result[1].source,'manual');
+});
+
+test('Private profile image, streak statistics, memory document and settings icons',async t=>{
+  const app=await fixture();let browser;
+  t.after(async()=>{if(browser)await browser.close();await app.close();});
+  const admin=app.client(),guest=app.client();await admin.login('admin','Admin-password-test-123');
+  assert.equal((await guest.request('/api/profile')).status,401);
+  assert.equal((await guest.request('/api/profile/image','PUT',{image:{}})).status,401);
+  const initial=(await admin.request('/api/profile')).data;
+  assert.equal(initial.image,null);assert.equal(initial.streaks.current,1);assert.equal(initial.streaks.totalActiveDays,1);
+  const userId=(await admin.request('/api/me')).data.user.id;
+  await app.pool.query("INSERT INTO user_activity(user_id,day) SELECT $1,(now() AT TIME ZONE 'Europe/Belgrade')::date-i FROM generate_series(1,3) AS i",[userId]);
+  await app.pool.query("INSERT INTO user_activity(user_id,day) SELECT $1,(now() AT TIME ZONE 'Europe/Belgrade')::date-i FROM generate_series(10,15) AS i",[userId]);
+  let profile=(await admin.request('/api/profile')).data;
+  assert.equal(profile.streaks.current,4);assert.equal(profile.streaks.longest,6);assert.equal(profile.streaks.totalActiveDays,10);
+  const png=await sharp({create:{width:800,height:400,channels:3,background:'#2563eb'}}).png().toBuffer();
+  const image={name:'avatar.png',content:png.toString('base64')};
+  assert.equal((await admin.request('/api/profile/image','PUT',{image},{'X-CSRF-Token':'bad'})).status,403);
+  assert.equal((await admin.request('/api/profile/image','PUT',{image:{name:'bad.png',content:'dGV4dA=='}})).status,400);
+  assert.equal((await admin.request('/api/profile/image','PUT',{image:null})).status,400);
+  assert.equal((await admin.request('/api/profile/image','PUT',{image})).status,200);
+  profile=(await admin.request('/api/profile')).data;
+  const info=await sharp(Buffer.from(profile.image.content,'base64')).metadata();
+  assert.equal(info.width,256);assert.equal(info.height,256);assert.equal(info.format,'jpeg');assert.equal(info.exif,undefined);
+  const otherId=randomUUID();await app.pool.query("INSERT INTO users(id,username,display_name,must_change_password) VALUES($1,'profile-other','Other',false)",[otherId]);
+  assert.equal((await app.pool.query('SELECT profile_image FROM users WHERE id=$1',[otherId])).rows[0].profile_image,null);
+  // An authenticated second account cannot read the first account's photo.
+  await admin.request('/api/admin/users','POST',{username:'avatar-other',displayName:'Other avatar',password:'Initial-password-123'});
+  const other=app.client();await other.login('avatar-other','Initial-password-123');await other.request('/api/password','POST',{currentPassword:'Initial-password-123',password:'Changed-password-456'});await other.login('avatar-other','Changed-password-456');
+  assert.equal((await other.request('/api/profile')).data.image,null);
+  await app.restart();assert.equal((await admin.request('/api/profile')).data.image.content,profile.image.content);
+  // Statements sent while memory is disabled are collected by the history button later.
+  const conversationId=(await admin.request('/api/conversations','POST',{})).data.conversation.id;
+  await admin.request('/api/chat','POST',{conversationId,requestId:randomUUID(),model:'deepseek-flash',prompt:'Radim kao profesor. Koristim Node.js.'});
+  const executablePath=['C:/Program Files/Google/Chrome/Application/chrome.exe','C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'].find(fs.existsSync);
+  browser=await chromium.launch({executablePath,headless:true});const page=await browser.newPage({viewport:{width:1440,height:900}});
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.route('https://accounts.google.com/**',r=>r.abort());await page.route('https://fonts.googleapis.com/**',r=>r.abort());
+  await page.goto(app.origin);await page.locator('#loginUsername').fill('admin');await page.locator('#loginPassword').fill('Admin-password-test-123');await page.locator('#loginSubmit').click();
+  await page.locator('#settingsButton').click();await page.locator('#profileImage').waitFor({state:'visible'});await page.waitForFunction(()=>document.querySelector('#streakCurrent').textContent==='4');
+  assert.equal(await page.locator('#streakLongest').textContent(),'6');
+  assert.equal(await page.locator('.settings-nav button svg').count(),7);
+  for(const width of [1440,768,390]){
+    await page.setViewportSize({width,height:900});
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+    assert.ok(await page.locator('#settingsDialog').evaluate(e=>e.scrollWidth<=e.clientWidth+1));
+    await page.screenshot({path:'test-artifacts/profile-'+width+'.png',animations:'disabled'});
+  }
+  const red=await sharp({create:{width:400,height:600,channels:3,background:'#ef4444'}}).png().toBuffer();
+  await page.locator('#profileImageInput').setInputFiles({name:'nova-slika.png',mimeType:'image/png',buffer:red});
+  await page.getByText('Profilna slika je sačuvana.',{exact:true}).waitFor();
+  assert.equal(await page.locator('#profileImageChoose').textContent(),'Promeni profilnu sliku');
+  const updated=(await admin.request('/api/profile')).data.image;
+  assert.notEqual(updated.content,profile.image.content);
+  await page.reload();await page.locator('#settingsButton').click();await page.locator('#profileImage').waitFor({state:'visible'});
+  assert.equal(await page.locator('#profileImage').getAttribute('src'),'data:image/jpeg;base64,'+updated.content);
+  await page.locator('#profileImageRemove').click();await page.getByText('Profilna slika je uklonjena.',{exact:true}).waitFor();
+  assert.equal((await admin.request('/api/profile')).data.image,null);assert.equal(await page.locator('#profileInitials').isVisible(),true);assert.equal(await page.locator('#profileImageRemove').isDisabled(),true);
+  await page.locator('[data-settings="memory"]').click();await page.locator('#memoryFields').waitFor({state:'visible'});
+  await page.locator('#memoryEnabled').check();await page.locator('#memoryForm button[type="submit"]').click();await page.getByText('Podešavanja su sačuvana.',{exact:true}).waitFor();
+  await page.locator('#profileMemoryHistory').click();await page.waitForFunction(()=>document.querySelector('#profileMemoryDocument').value.includes('Radim kao profesor.'));
+  const text=await page.locator('#profileMemoryDocument').inputValue();assert.match(text,/1\. Radim kao profesor\./);assert.match(text,/2\. Koristim Node\.js\./);
+  await page.locator('#profileMemoryDocument').scrollIntoViewIfNeeded();await page.screenshot({path:'test-artifacts/profile-memory-document-390.png',animations:'disabled'});
+  await page.locator('#profileMemoryList li').first().getByRole('button',{name:/Obriši/}).click();await page.waitForFunction(()=>{const value=document.querySelector('#profileMemoryDocument').value;return value.includes('Koristim Node')&&!value.includes('Radim kao profesor.');});
+  assert.match(await page.locator('#profileMemoryDocument').inputValue(),/Koristim Node/);
+  await page.reload();await page.locator('#settingsButton').click();await page.locator('[data-settings="memory"]').click();await page.waitForFunction(()=>document.querySelector('#profileMemoryDocument').value.includes('Koristim Node'));
+  // The memory document is editable, saved on the account and sent to the model.
+  assert.equal(await page.locator('#profileMemoryDocument').getAttribute('readonly'),'');
+  await page.locator('#profileDocumentEdit').click();
+  assert.equal(await page.locator('#profileMemoryDocument').getAttribute('readonly'),null);
+  const document='1. Radim kao programer.\n\n2. Koristim Node.js.\n\n3. Živim u Beogradu.';
+  await page.locator('#profileMemoryDocument').fill(document);await page.locator('#profileDocumentSave').click();
+  await page.waitForFunction(()=>!document.querySelector('#profileDocumentEdit').disabled && document.querySelector('#profileMemoryDocument').readOnly && document.querySelector('#profileMemoryDocument').value.includes('Radim kao programer.'));
+  let saved=(await admin.request('/api/memory')).data;
+  assert.equal(saved.profileEntries.length,3);assert.equal(saved.profileEntries.filter(e=>e.source==='manual').length,2);
+  assert.equal((await admin.request('/api/memory/profile','PUT',{text:'Nova stavka'})).status,400);
+  assert.equal((await admin.request('/api/memory/profile','PUT',{text:'x'.repeat(501),revision:saved.profileRevision})).status,400);
+  assert.equal((await guest.request('/api/memory/profile','PUT',{text:document,revision:saved.profileRevision})).status,401);
+  assert.equal((await other.request('/api/memory/profile','PUT',{text:document,revision:saved.profileRevision})).status,409);
+  assert.equal((await other.request('/api/memory')).data.profileEntries.length,0);
+  await admin.request('/api/chat','POST',{conversationId,requestId:randomUUID(),model:'deepseek-flash',prompt:'Provera ažurirane memorije'});
+  assert.match(app.calls.at(-1).messages.find(m=>m.role==='system').content,/Radim kao programer/);
+  await page.reload();await page.locator('#settingsButton').click();await page.locator('[data-settings="memory"]').click();
+  await page.waitForFunction(()=>document.querySelector('#profileMemoryDocument').value.includes('Radim kao programer.'));
+  await page.locator('#profileDocumentEdit').click();await page.locator('#profileMemoryDocument').fill('Nesačuvana izmena.');
+  await page.locator('[data-settings="files"]').click();await page.locator('[data-settings="memory"]').click();
+  await page.waitForFunction(()=>!document.querySelector('#profileDocumentSave').disabled);
+  assert.equal(await page.locator('#profileMemoryDocument').inputValue(),'Nesačuvana izmena.');
+  await page.locator('#profileDocumentCancel').click();await page.waitForFunction(()=>document.querySelector('#profileMemoryDocument').value.includes('Radim kao programer.'));
+  await page.locator('#profileDocumentEdit').click();await page.locator('#profileMemoryDocument').fill('Privremeni dokument.');
+  // A concurrent change must not be silently overwritten by a stale document.
+  await admin.request('/api/memory/import','POST',{text:'Volim jasne primere.'});
+  await page.locator('#profileDocumentSave').click();await page.getByText('Memorija je u međuvremenu promenjena. Otkažite izmenu i učitajte najnoviji dokument.',{exact:true}).first().waitFor();
+  assert.equal(await page.locator('#profileMemoryDocument').inputValue(),'Privremeni dokument.');
+  assert.equal((await admin.request('/api/memory')).data.profileEntries.length,4);
+  await page.locator('#profileDocumentCancel').click();await page.waitForFunction(()=>document.querySelector('#profileMemoryDocument').value.includes('Volim jasne primere.'));
+  await page.locator('#profileDocumentEdit').click();await page.locator('#profileMemoryDocument').scrollIntoViewIfNeeded();
+  await page.screenshot({path:'test-artifacts/profile-memory-edit-390.png',animations:'disabled'});
+  await page.locator('#profileMemoryDocument').fill('');await page.locator('#profileDocumentSave').click();
+  await page.waitForFunction(()=>!document.querySelector('#profileDocumentEdit').disabled && document.querySelector('#profileMemoryDocument').readOnly && !document.querySelector('#profileMemoryList').children.length);
+  assert.equal((await admin.request('/api/memory')).data.profileEntries.length,0);
+  assert.deepEqual(errors,[]);
+});

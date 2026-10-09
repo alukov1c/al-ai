@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="sr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AL AI asistent zasnovan na DeepSeek API-ju">
+  <title>AL AI </title> <!-- — DeepSeek asistent --> 
+  <link rel="icon" href="AL-AI.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="stil.css">
+  <link rel="stylesheet" href="accounts.css">
+  <link rel="stylesheet" href="/vendor/katex/katex.min.css">
+</head>
+<body>
+  <div class="ambient ambient-one"></div>
+  <div class="ambient ambient-two"></div>
+
+  <section class="login-panel" id="loginPanel">
+    <div class="account-card">
+      <h1>A-L AI</h1>
+      <p>Prijavite se za korišćenje aplikacije.</p>
+      <div id="googleSection" hidden>
+        <div id="googleButton"></div>
+        <p id="googleNotice" class="form-message" role="status"></p>
+        <button id="googleRefresh" type="button">Osveži Google dugme</button>
+        <p>Prva Google prijava čeka odobrenje administratora. Ako već imate nalog, prijavite se lozinkom i povežite Google iz naloga.</p>
+        <p class="login-separator">ili se prijavite lozinkom</p>
+      </div>
+      <form id="loginForm" class="account-form">
+        <label>Korisničko ime<input id="loginUsername" autocomplete="username" maxlength="80" required></label>
+        <label>Lozinka<input id="loginPassword" type="password" autocomplete="current-password" maxlength="128" required></label>
+        <button id="loginSubmit" type="submit">Prijavi se</button>
+      </form>
+      <p id="loginError" class="form-message" role="alert"></p>
+      <p>Nalog otvara administrator aplikacije. Nemate nalog? Zatražite ga od administratora putem imejla: <strong>a.lukovic26@gmail.com</strong>.</p>
+      <p><a href="https://a-lukovic.web.app/profil/profil.html">Nazad na veb profil.</a></p>
+      <p><a id="o-a"href="https://a-lukovic.web.app/gui.html">Nazad na odabir aplikacija.</a></p>
+    </div>
+  </section>
+  <section class="login-panel" id="pendingPanel" hidden>
+    <div class="account-card">
+      <h1>Prijava je uspela</h1>
+      <p>Vaš nalog čeka odobrenje administratora. Nakon odobrenja možete započeti svoje razgovore.</p>
+      <div class="account-controls">
+        <button id="pendingRefresh" type="button">Proveri odobrenje</button>
+        <button id="pendingLogout" type="button">Odjavi se</button>
+      </div>
+    </div>
+  </section>
+  <div class="app-shell" hidden>
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="brand" id="homeButton" role="button" tabindex="0" aria-label="Novi razgovor" title="Novi razgovor">
+          <div class="brand-mark" aria-hidden="true">AL </div>
+          <div><strong>AL AI</strong><span>DeepSeek AI asistent</span></div>
+        </div>
+        <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-label="Sklopi bočni panel" aria-expanded="true" title="Toggle side panel">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="16" rx="2"></rect>
+            <path d="M9 4v16M15 9l-3 3 3 3"></path>
+          </svg>
+        </button>
+      </div>
+
+      <button class="new-chat" id="newChatButton" type="button" data-busy>
+        <span aria-hidden="true">＋</span> Novi razgovor
+      </button>
+
+      <div class="sidebar-label">Razgovori</div>
+      <nav class="history" id="history" aria-label="Istorija razgovora"></nav>
+
+      <button id="moreHistory" type="button" data-busy hidden>Još razgovora</button>
+      <div class="account-controls">
+        <strong id="accountName"></strong>
+        <button id="adminButton" type="button" data-busy hidden>Korisnici</button>
+        <button id="importButton" type="button" data-busy hidden>Uvezi lokalne razgovore</button>
+        <span id="googleLinked" hidden>Google nalog je povezan</span>
+        <button id="googleLinkOpen" type="button" data-busy hidden>Poveži Google nalog</button>
+        <button id="passwordButton" type="button" data-busy>Moja lozinka</button>
+        <button id="logoutButton" type="button" data-busy>Odjavi se</button>
+      </div>
+      <div class="sidebar-footer">
+        <div class="status-dot"></div>
+        <div><strong>DeepSeek API</strong><span id="connectionStatus">Spreman za povezivanje</span></div>
+      </div>
+    </aside>
+
+    <main class="chat-panel">
+      <header class="topbar">
+        <button class="icon-button menu-button" id="menuButton" type="button" aria-label="Otvori meni">☰</button>
+        <div class="model-info"><span>Aktivni model</span><strong id="modelName">V4.1 Flash · Chat</strong></div>
+        <button class="app-menu-toggle" id="appMenuToggle" type="button" aria-label="Otvori meni aplikacija" aria-expanded="false" aria-controls="appMenu" title="A-L aplikacije">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1"></rect><rect x="14" y="4" width="6" height="6" rx="1"></rect><rect x="4" y="14" width="6" height="6" rx="1"></rect><rect x="14" y="14" width="6" height="6" rx="1"></rect></svg>
+        </button>
+        <nav class="app-menu" id="appMenu" aria-label="A-L aplikacije">
+          <a href="https://a-lukovic.web.app/profil/profil.html" title="A-L profil">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3"></circle><path d="M5.5 20c.7-4 3-6 6.5-6s5.8 2 6.5 6"></path></svg>
+            <span>A-L profil</span>
+          </a>
+          <a href="https://a-lukovic.web.app/gui.html" title="A-L portfolio">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="14" rx="2"></rect><path d="M8 6V4h8v2M3 11h18M10 11v2h4v-2"></path></svg>
+            <span>A-L portfolio</span>
+          </a>
+          <a href="https://al-market.onrender.com/m1" title="A-L market">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18V9M10 18V5M16 18v-7M22 18V3"></path><path d="m3 12 6-4 6 2 7-6"></path></svg>
+            <span>A-L market</span>
+          </a>
+          <a href="https://a-lukovic.web.app/radovi/radovi.html" title="A-L istraživanja">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4A2 2 0 0 0 19 18l-5-9V3"></path><path d="M7.5 15h9"></path></svg>
+            <span>A-L istraživanja</span>
+          </a>
+        </nav>
+        <div class="topbar-options"><button id="settingsButton" class="settings-button" type="button" data-busy aria-label="Podešavanja" title="Podešavanja"><svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m9 3-.5 2.3-2 1.2-2.3-.7-2 3.4L4 11v2l-1.8 1.8 2 3.4 2.3-.7 2 1.2L9 21h4l.5-2.3 2-1.2 2.3.7 2-3.4L18 13v-2l1.8-1.8-2-3.4-2.3.7-2-1.2L13 3z"/><circle cx="11" cy="12" r="3"/></svg></button>
+        <select id="modelSelect" data-busy aria-label="Izaberi model">
+          <option value="deepseek-flash">V4.1 Flash · Chat</option>
+          <option value="deepseek-flash-thinking">V4.1 Flash · Thinking</option>
+        </select></div>
+      </header>
+
+      <section class="messages" id="messages" aria-live="polite">
+        <div class="welcome" id="welcome">
+          <div class="hero-icon" aria-hidden="true"> A-L <!-- ✦ --></div>
+          <div class="eyebrow"><h2>A-L AI</h2>  <!-- INTELIGENTNI DIGITALNI ASISTENT --></div>
+          <!-- <h1>Kako mogu da Vam pomognem?</h1> -->
+          <p class="welcome-copy">
+
+            Pitanje. Objašnjenje. Ideja. <!-- Postavite pitanje, zatražite objašnjenje ili razvijte novu ideju. -->
+
+            <br>
+            <br>
+
+            <div id="w-tekst">
+              Telekomunikacije. IKT. Primenjena i kompjuterska fizika. Programiranje. AI. JavaScript. Veb. Investicioni menadžment. Preduzetništvo. Šta god. 
+            </div>
+
+
+          </p>
+          <div class="suggestions">
+            <button class="suggestion" type="button" data-prompt="Objašnjenje koncepta funkcionisanja velikih jezičkih modela jednostavnim rečima.">
+              <span>◎</span><strong>Objašnjenje koncepta</strong><small>Složene teme - jednostavno. </small>
+            </button>
+            <button class="suggestion" type="button" data-prompt="Pisanje JavaScript funkcije za sortiranje niza objekata po datumu.">
+              <span>&lt;/&gt;</span><strong>Pisanje koda</strong><small>Rešenja i objašnjenja. </small>
+            </button>
+            <button class="suggestion" type="button" data-prompt="Generisanje pet kreativnih ideja za veb aplikaciju zasnovanu na veštačkoj inteligenciji.">
+              <span>◇</span><strong>Generisanje ideja</strong><small>Kreativni početak projekta. </small>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <div class="composer-wrap">
+        <p id="appNotice" role="status"></p>
+        <button id="retryButton" type="button" data-busy hidden>Ponovi slanje</button>
+        <form class="composer" id="chatForm">
+          <textarea id="promptInput" rows="1" maxlength="12000" placeholder="Pošaljite poruku AL AI. " aria-label="Poruka"></textarea>
+          <div id="attachmentPreview" class="attachment-preview" hidden><img id="attachmentImage" class="attachment-thumbnail" alt="Pregled izabrane slike" hidden><span id="attachmentName"></span><button id="attachmentRemove" type="button" data-busy aria-label="Ukloni prilog">×</button></div>
+          <input id="attachmentInput" type="file" accept=".pdf,.docx,.txt,.md,.csv,.json,.log,.xlsx,.pptx,.png,.jpg,.jpeg,.webp,.gif" hidden>
+          <div class="composer-bottom">
+            <span class="shortcut">Enter za slanje · Shift + Enter za novi red</span>
+            <div class="composer-actions"><button id="attachButton" class="attach-button" type="button" data-busy aria-label="Priloži dokument" title="Priloži sliku, PDF, DOCX, XLSX, PPTX ili tekstualnu datoteku (do 3 MB)"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m8 12 6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l9-9M6 14l8-8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <button class="send-button" id="sendButton" type="submit" data-busy aria-label="Pošalji poruku">➜</button></div>
+          </div>
+        </form>
+        <p class="disclaimer">AL AI može da napravi grešku. Proverite važne informacije.</p>
+      </div>
+    </main>
+  </div>
+
+
+  <dialog id="settingsDialog" class="settings-dialog" aria-labelledby="settingsTitle">
+    <div class="dialog-heading"><h2 id="settingsTitle">Podešavanja</h2><button id="settingsClose" type="button" aria-label="Zatvori podešavanja">×</button></div>
+    <div class="settings-layout">
+      <nav class="settings-nav" aria-label="Kategorije podešavanja">
+        <button type="button" data-settings="profile" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="8" r="3"/><path d="M5.5 20c.7-4 3-6 6.5-6s5.8 2 6.5 6"/></svg><span>Profil</span></button>
+        <button type="button" data-settings="memory"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="5" y="5" width="14" height="14" rx="3"/><path d="M9 1v4m6-4v4M9 19v4m6-4v4M1 9h4m-4 6h4m14-6h4m-4 6h4M9 9h6v6H9z"/></svg><span>Memorija i personalizacija</span></button>
+        <button type="button" data-settings="analytics"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 3v17h17M8 16v-5m5 5V7m5 9V4"/></svg><span>Analiza</span></button>
+        <button type="button" data-settings="activity"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18m-14 5h2m3 0h2m3 0h1m-11 3h2m3 0h2"/></svg><span>Aktivnost</span></button>
+        <button type="button" data-settings="documents"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M8 13h8m-8 4h6"/></svg><span>Dokumenti</span></button>
+        <button type="button" data-settings="images"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8" cy="8" r="1.5"/><path d="m21 16-6-6-7 8-3-3-2 2"/></svg><span>Slike</span></button>
+        <button type="button" data-settings="files"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 7a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span>Datoteke</span></button>
+      </nav>
+      <div class="settings-content">
+        <section id="settings-profile"><h3>Profil</h3>
+          <div class="profile-picture-row"><div class="profile-picture"><img id="profileImage" alt="Vaša profilna slika" hidden><span id="profileInitials" aria-hidden="true"></span></div><div class="profile-picture-controls"><button id="profileImageChoose" type="button" data-busy>Dodaj profilnu sliku</button><button id="profileImageRemove" type="button" data-busy disabled>Ukloni sliku</button><input id="profileImageInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif" aria-label="Izaberite profilnu sliku" hidden><p>JPG, PNG, WebP ili statički GIF, do 3 MB.</p></div></div><p id="profileImageStatus" role="status"></p>
+          <dl class="profile-details"><dt>Ime</dt><dd id="settingsName"></dd><dt>Korisničko ime</dt><dd id="settingsUsername"></dd><dt>Pristup</dt><dd id="settingsRole"></dd></dl>
+          <div class="settings-profile-actions"><button id="settingsPassword" type="button">Promeni lozinku</button><button id="settingsUsers" type="button" hidden>Upravljanje korisnicima</button><button id="settingsLogout" type="button">Odjavi se</button></div>
+          <h4>Uzastopno korišćenje AL AI</h4><p>Dani se računaju po vremenu u Beogradu. Niz se prekida nakon celog dana bez korišćenja.</p>
+          <p id="profileStreakStatus" role="status"></p><dl class="analytics-grid profile-streaks"><div><dt>Trenutni niz</dt><dd><span id="streakCurrent">—</span><small id="streakCurrentUnit"> dana</small></dd></div><div><dt>Najduži niz</dt><dd><span id="streakLongest">—</span><small id="streakLongestUnit"> dana</small></dd></div><div><dt>Aktivni dani ukupno</dt><dd id="streakTotal">—</dd></div></dl><button id="profileRefresh" type="button" data-busy>Osveži profil</button>
+        </section>
+        <section id="settings-memory" hidden>
+          <h3>Memorija i personalizacija</h3>
+          <form id="memoryForm" class="account-form"><fieldset id="memoryFields" disabled>
+            <label for="personalization">Kako želite da asistent odgovara?</label>
+            <textarea id="personalization" rows="5" maxlength="4000" placeholder="Odgovaraj SRB ekavicom. Koristi kratke pasuse i primere."></textarea>
+            <p>Uputstvo se čuva na vašem nalogu i primenjuje na buduće odgovore, nezavisno od memorije.</p>
+            <label class="memory-toggle"><input id="memoryEnabled" type="checkbox" role="switch"> Memorija uključena</label>
+            <p>Kada je uključena, pamte se jasna uputstva poput „Odgovaraj SRB ekavicom“ i „Zapamti: …“. Kada je isključena, sačuvane stavke se ne koriste i nove se ne pamte. Isključivanje ne briše memoriju.</p>
+            <button type="submit">Sačuvaj podešavanja</button>
+          </fieldset></form>
+          <p id="memoryStatus" role="status"></p>
+          <h4>Zapamćene stavke</h4>
+          <p>Do 50 stavki, od najstarije ka najnovijoj. Preuzimanje iz istorije obrađuje poslednjih 1000 vaših poruka. Brisanje razgovora ne briše ove stavke; obrišite ih ovde. Ponovno preuzimanje iz istorije može ih vratiti.</p>
+          <div class="memory-actions"><button id="memoryRefresh" type="button">Osveži</button><button id="memoryHistory" type="button" disabled>Preuzmi iz ranijih razgovora</button><button id="memoryClear" type="button" disabled>Obriši svu memoriju</button></div>
+          <ul id="memoryList"></ul>
+          <h4>Memorija o korisniku na osnovu konverzacija</h4>
+          <p>Čuvaju se jasni podaci koje navedete o sebi, poput „Radim kao profesor“ ili „Koristim Node.js“. Obrađuju se vaše poruke, bez priloga. Do 50 stavki; koriste se kada je memorija uključena.</p>
+          <div class="memory-actions"><button id="profileMemoryHistory" type="button" disabled>Preuzmi iz konverzacija</button><button id="profileMemoryClear" type="button" disabled>Obriši ovaj odeljak</button><button id="profileDocumentEdit" type="button" disabled>Izmeni</button><button id="profileDocumentSave" type="button" disabled>Sačuvaj</button><button id="profileDocumentCancel" type="button" hidden>Otkaži</button></div>
+          <p id="profileDocumentStatus" role="status"></p><label for="profileMemoryDocument">Dokument memorije o korisniku</label><textarea id="profileMemoryDocument" rows="8" readonly placeholder="Podaci će biti prikazani nakon preuzimanja iz konverzacija."></textarea>
+          <p>Za ažuriranje izaberite „Izmeni“, uredite dokument i pritisnite „Sačuvaj“. Odvojite stavke praznim redom. Do 50 stavki, do 500 znakova po stavci.</p><p id="profileMemoryEmpty">Još nema sačuvanih podataka o korisniku.</p><ul id="profileMemoryList"></ul>
+          <h4>Uvoz memorije iz drugih AI alata</h4>
+          <p>Kopirajte upit u drugi AI alat. Ovde nalepite njegov odgovor, pregledajte stavke i uvezite ih na svoj nalog.</p>
+          <label for="memoryTransferPrompt">Upit za drugi AI alat</label><textarea id="memoryTransferPrompt" rows="6" readonly></textarea>
+          <button id="memoryPromptCopy" type="button">Kopiraj upit</button>
+          <label for="memoryImportText">Odgovor drugog AI alata</label><textarea id="memoryImportText" rows="6" maxlength="26000" placeholder='{"memories":["Radim kao profesor.","Preferiram odgovore na srpskom."]}'></textarea>
+          <p>Prihvata se JSON sa listom „memories“ ili lista sa jednom stavkom po redu. Do 50 stavki, do 500 znakova po stavci. Uvezeni podaci primenjuju se kada je memorija uključena.</p>
+          <button id="memoryImportSave" type="button">Uvezi navedene stavke</button><p id="memoryImportStatus" role="status"></p>
+        </section>
+        <section id="settings-activity" hidden><h3>Aktivnost korisnika</h3>
+          <p>Dani korišćenja i broj poslatih poruka. Prikaz je za poslednjih 365 dana, po vremenu u Beogradu. Raniji dani rekonstruisani su iz sačuvanih poruka; od sada se beleže i dani korišćenja bez poruka.</p>
+          <label class="activity-filter" for="activityView">Prikaz<select id="activityView"><option value="daily">Dnevno</option><option value="weekly">Nedeljno</option><option value="cumulative">Kumulativno</option></select></label>
+          <button id="activityRefresh" type="button">Osveži</button><p id="activityStatus" role="status"></p>
+          <dl id="activityTotals" class="analytics-grid"></dl><p class="activity-legend"><span class="activity-key active"></span> Aktivno <span class="activity-key"></span> Neaktivno</p>
+          <p id="activityCaption"></p><div class="activity-scroll"><div id="activityGrid" class="activity-grid" aria-label="Kalendar aktivnosti"></div></div><p id="activityDetail" role="status">Pređite preko kvadratića ili ga izaberite za detalje.</p>
+        </section>
+        <section id="settings-analytics" hidden><h3>Analiza korišćenja</h3><p id="analyticsStatus" role="status"></p><dl class="analytics-grid"><div><dt>Razgovori</dt><dd id="statConversations">—</dd></div><div><dt>Vaše poruke</dt><dd id="statUserMessages">—</dd></div><div><dt>Odgovori asistenta</dt><dd id="statAnswers">—</dd></div><div><dt>Poruke u ovom razgovoru</dt><dd id="statCurrent">—</dd></div></dl><p>Prikaz obuhvata vaše trenutno sačuvane razgovore. Potrošnja tokena i novčani troškovi nisu uključeni.</p><button id="analyticsRefresh" type="button">Osveži statistiku</button></section>
+
+        <section id="settings-images" hidden><h3>Slike</h3><p>Podržani su JPG, PNG, WebP i statički GIF, do 3 MB i 16 megapiksela. Slike se pripremaju do 2048 px po stranici i čuvaju uz razgovor. Generisanje novih slika nije uključeno.</p><button id="imagesRefresh" type="button">Osveži galeriju</button><p id="imagesStatus" role="status"></p><div id="imageGallery" class="file-gallery"></div></section>
+        <section id="settings-files" hidden><h3>Uvezene i izvezene datoteke</h3><p>Originali uvezenih dokumenata i napravljeni izvozi dostupni su za preuzimanje. Brisanje dokumenta iz biblioteke ne briše tekst koji je već poslat u razgovor.</p><label class="files-filter" for="filesFilter">Prikaži<select id="filesFilter"><option value="all">Sve datoteke</option><option value="import">Uvezene</option><option value="export">Izvezene</option></select></label><button id="filesRefresh" type="button">Osveži</button><p id="filesStatus" role="status"></p><div id="documentLibrary" class="file-library"></div><p>Ukupan prostor za slike i datoteke: do 100 stavki / 100 MB po nalogu. Brisanjem razgovora brišu se i njegove datoteke.</p></section>
+
+        <section id="settings-documents" hidden><h3>Dokumenti</h3><form id="documentSettingsForm" class="account-form">
+          <label>Podrazumevani format<select id="documentFormat"><option value="pdf">PDF</option><option value="docx">DOCX — Word</option><option value="pptx">PPTX — PowerPoint</option><option value="xlsx">XLSX — Excel</option></select></label>
+          <label>PDF i DOCX — veličina stranice<select id="documentPage"><option value="A4">A4</option><option value="LETTER">Letter</option></select></label>
+          <label>PDF i DOCX — veličina teksta<select id="documentFont"><option value="10">10 pt</option><option value="11">11 pt</option><option value="12">12 pt</option><option value="14">14 pt</option></select></label>
+          <label>PPTX — odnos stranica<select id="documentSlides"><option value="wide">16:9</option><option value="standard">4:3</option></select></label>
+          <label class="checkbox-label"><input id="documentWrap" type="checkbox">XLSX — prelamanje teksta u ćelijama</label>
+          <button type="submit">Sačuvaj podešavanja</button><p id="documentSettingsStatus" role="status"></p>
+        </form><p>Podešavanja važe za vaš nalog u ovom pregledaču. Prilozi: PDF, DOCX, XLSX, PPTX i tekstualne datoteke, do 3 MB i 40.000 znakova. Iz PDF-a se čita tekst; skenirane stranice možete priložiti kao slike.</p><button id="exportConversation" type="button" data-busy>Preuzmi sve odgovore ovog razgovora</button></section>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="passwordDialog" class="account-dialog" aria-labelledby="passwordTitle">
+    <div class="dialog-heading"><h2 id="passwordTitle">Moja lozinka</h2><button id="passwordClose" type="button">Zatvori</button></div>
+    <p id="passwordHelp"></p>
+    <form id="passwordForm" class="account-form">
+      <label>Trenutna lozinka<input id="currentPassword" type="password" autocomplete="current-password" maxlength="128" required></label>
+      <label>Nova lozinka (najmanje 12 znakova)<input id="newPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
+      <label>Ponovite novu lozinku<input id="confirmPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
+      <button id="passwordSubmit" type="submit">Sačuvaj lozinku</button>
+    </form>
+    <button id="passwordLogout" type="button">Odjavi se</button>
+    <p id="passwordError" class="form-message" role="alert"></p>
+  </dialog>
+  <dialog id="adminDialog" class="account-dialog" aria-labelledby="adminTitle">
+    <div class="dialog-heading"><h2 id="adminTitle">Korisnički nalozi</h2><button id="adminClose" type="button">Zatvori</button></div>
+    <p>Kreirajte nalog i korisniku dostavite početnu lozinku. Korisnik će je promeniti pri prvoj prijavi.</p>
+    <form id="adminForm" class="account-form">
+      <label>Ime za prikaz<input id="newDisplayName" maxlength="80" required></label>
+      <label>Korisničko ime<input id="newUsername" autocomplete="off" minlength="3" maxlength="80" pattern="[a-zA-Z0-9_.@\-]+" required></label>
+      <label>Početna lozinka (najmanje 12 znakova)<input id="initialPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
+      <button id="createUserButton" type="submit">Kreiraj nalog</button>
+    </form>
+    <p id="adminNotice" class="form-message" role="status"></p>
+    <form id="resetForm" class="account-form" hidden>
+      <input id="resetUserId" type="hidden">
+      <label><span id="resetLabel">Nova početna lozinka</span><input id="resetPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
+      <button id="resetSubmit" type="submit">Postavi lozinku</button>
+      <button id="resetCancel" type="button">Otkaži</button>
+    </form>
+    <div id="adminUsers"></div>
+  </dialog>
+  <dialog id="googleLinkDialog" class="account-dialog" aria-labelledby="googleLinkTitle">
+    <div class="dialog-heading"><h2 id="googleLinkTitle">Poveži Google nalog</h2><button id="googleLinkClose" type="button">Zatvori</button></div>
+    <p>Potvrdite lozinku ovog naloga, a zatim izaberite svoj Google nalog. Oba načina prijave otvaraće iste razgovore.</p>
+    <form id="googleLinkForm" class="account-form">
+      <label>Trenutna lozinka<input id="googleLinkPassword" type="password" autocomplete="current-password" maxlength="128" required></label>
+      <button id="googleLinkSubmit" type="submit">Pripremi povezivanje</button>
+    </form>
+    <p id="googleLinkNotice" class="form-message" role="status"></p>
+    <div id="googleLinkButton"></div>
+  </dialog>
+  <dialog id="filePreviewDialog" class="file-preview-dialog" aria-labelledby="filePreviewTitle">
+    <div class="dialog-heading"><h2 id="filePreviewTitle">Pregled</h2><button id="filePreviewClose" type="button">Zatvori</button></div>
+    <p id="filePreviewStatus" role="status"></p>
+    <div class="file-preview-content"><img id="filePreviewImage" alt="" hidden><pre id="filePreviewText" hidden></pre></div>
+    <div id="filePreviewPages" class="file-card-actions" hidden><button id="filePreviewPrevious" type="button">Prethodna</button><span id="filePreviewPage"></span><button id="filePreviewNext" type="button">Sledeća</button></div>
+  </dialog>
+  <script src="/vendor/katex/katex.min.js" defer></script>
+  <script src="/vendor/katex/contrib/auto-render.min.js" defer></script>
+  <script src="math-format.js" defer></script>
+  <script src="app.js" defer></script>
+</body>
+</html>
