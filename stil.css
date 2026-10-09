@@ -1555,3 +1555,8 @@ textarea::placeholder {
 @media(prefers-reduced-motion:reduce){.workspace-row:hover .history-item.title-overflow .history-title{width:auto;animation:none}}
 .history-item.title-overflow:hover,.history-item.title-overflow:focus-visible,.workspace-row:hover .history-item.title-overflow{ text-overflow:clip; }
 .history-item.title-overflow:hover .history-title,.history-item.title-overflow:focus-visible .history-title,.workspace-row:hover .history-item.title-overflow .history-title{ text-overflow:clip; }
+
+.category-label .category-toggle{display:flex;align-items:center;gap:7px;flex:1;min-width:0;margin:0;padding:0;border:0;background:transparent;color:inherit;font:inherit;letter-spacing:inherit;text-transform:inherit;text-align:left;cursor:pointer;user-select:none}.category-toggle .category-chevron{margin-left:auto;flex-shrink:0;transition:transform .15s}.category-toggle[aria-expanded=false] .category-chevron{transform:rotate(-90deg)}.category-label .category-toggle:hover,.category-label .category-toggle:focus-visible{color:#2563eb}.category-toggle:focus-visible{outline:2px solid #2563eb;outline-offset:4px;border-radius:3px}#projectList[hidden],#projectAll[hidden],#scheduledList[hidden],#scheduledStatus[hidden],#pinnedList[hidden],#history[hidden],#moreHistory[hidden]{display:none!important}
+@media(prefers-reduced-motion:reduce){.category-toggle .category-chevron{transition:none}}
+/* Naslovi se skraćuju bez trotačke; dugme ⋯ je zasebna kontrola. */
+#history .history-item,#projectList .history-item,#pinnedList .history-item,.workspace-item,.history-title{ text-overflow:clip; }

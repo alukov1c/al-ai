@@ -29,6 +29,7 @@ let googleClientId = '';
 let googleReady;
 let googleVersion = 0;
 let attachment = null;
+let sidebarSections={};
 let workspace={projects:[],pins:[],plugins:{pdf:true,docx:true,xlsx:true,pptx:true}},activeProject=null,editingProject=null,workSelection=new Set(),workspaceLoad=0;
 function clearAttachment() {
   attachment = null;
@@ -175,6 +176,7 @@ function renderHistory() {
     historyElement.append(entry);
   }
   $('#moreHistory').hidden = !hasMore;
+  applySidebarSections();
   requestAnimationFrame(updateHistoryOverflow);
 }
 function updateHistoryOverflow() {
@@ -599,6 +601,7 @@ async function enterApp(result) {
   conversations = [];
   clearTimeout(pollTimer);
   currentUser = result.user;
+  restoreSidebarSections();
   csrfToken = result.csrfToken;
   $('#loginPanel').hidden = true;
   $('#pendingPanel').hidden = result.user.approvalState !== 'pending';
@@ -1223,6 +1226,7 @@ function renderWorkspace(){
   makeWorkspaceDrag(row,{kind:item.kind,id:item.id});makeWorkspaceDrop(row,async source=>{if(source.id===item.id&&source.kind===item.kind)return;const items=[...workspace.pins],from=items.findIndex(pin=>pin.id===source.id&&pin.kind===source.kind);if(from<0){await pinWorkspaceItem(source);return;}const moved=items.splice(from,1)[0];items.splice(items.findIndex(pin=>pin.id===item.id&&pin.kind===item.kind),0,moved);await api('/api/pins/order','PUT',{items:items.map(({id,kind})=>({id,kind}))});await refreshWorkspace();});
   row.append(itemMenuButton({kind:item.kind,id:item.id,name:item.name}));$('#pinnedList').append(row);
  });
+ applySidebarSections();
 }
 async function selectProject(id){activeProject=id;current=null;activeId=null;workSelection.clear();clearTimeout(pollTimer);stopGenerationTimer();await refreshList();renderConversation();if($('#chatMode').value==='work')await refreshWorkFiles();}
 function openProject(project=null){editingProject=project?.id||null;$('#projectName').value=project?.name||'';$('#projectInstructions').value=project?.instructions||'';$('#projectPinned').checked=!!project?.pinned;$('#projectDelete').hidden=!project;$('#projectStatus').textContent='';$('#projectDialog').showModal();}
@@ -1297,3 +1301,22 @@ async function viewSavedConversation(id){const version=epoch;$('#savedMessages')
 $('#savedRefresh').addEventListener('click',refreshSavedConversations);$('#savedClose').addEventListener('click',()=>$('#savedDialog').close());$('#savedSource').addEventListener('click',()=>action(async()=>{$('#savedDialog').close();$('#settingsDialog').close();activeProject=savedItem.source_project_id||null;await refreshList();await selectConversation(savedItem.source_id);}));
 async function refreshArchived(){const version=epoch;$('#archivedList').replaceChildren();$('#archivedStatus').textContent='Učitavanje…';try{const result=await api('/api/archived');if(version!==epoch)return;for(const item of [...result.projects.map(row=>({kind:'project',id:row.id,name:row.name,archived:true,project:row})),...result.conversations.map(row=>({kind:'conversation',id:row.id,name:row.title,archived:row.archived,parentArchived:!row.archived}))]){const row=document.createElement('div');row.className='workspace-row';const title=document.createElement('button');title.type='button';title.className='workspace-item';title.textContent=(item.kind==='project'?'Projekat: ':'Razgovor: ')+item.name;title.addEventListener('click',()=>{if(item.kind==='project'){openProject(item.project);return;}action(async()=>{$('#settingsDialog').close();activeProject=null;await refreshList();await selectConversation(item.id);notice('Arhiviran razgovor. Za novu poruku vratite ga iz arhive.');});});row.append(title,itemMenuButton(item));$('#archivedList').append(row);}$('#archivedStatus').textContent=result.projects.length||result.conversations.length?'':'Arhiva je prazna.';}catch(error){if(version===epoch)$('#archivedStatus').textContent=error.message;}}
 $('#archivedRefresh').addEventListener('click',refreshArchived);
+function applySidebarSections(){
+ document.querySelectorAll('.category-toggle').forEach(button=>{
+  const collapsed=sidebarSections[button.dataset.category]===true;button.setAttribute('aria-expanded',String(!collapsed));button.title=(collapsed?'Proširi ':'Skupi ')+button.querySelector('span').textContent;
+  for(const id of button.getAttribute('aria-controls').split(' ')){const target=document.getElementById(id);if(target)target.hidden=collapsed||(id==='moreHistory'&&!hasMore);}
+ });
+}
+function restoreSidebarSections(){
+ let saved={};try{saved=JSON.parse(localStorage.getItem('al-ai-sections-'+currentUser?.id)||'{}');}catch{}
+ sidebarSections=Object.fromEntries(['projects','scheduled','pinned','conversations'].map(key=>[key,saved?.[key]===true]));applySidebarSections();
+}
+document.querySelectorAll('.category-toggle').forEach(button=>{
+ button.addEventListener('click',event=>{
+  if(event.detail>1)return;
+  const key=button.dataset.category;sidebarSections[key]=!sidebarSections[key];applySidebarSections();
+  if(currentUser)try{localStorage.setItem('al-ai-sections-'+currentUser.id,JSON.stringify(sidebarSections));}catch{}
+  requestAnimationFrame(updateHistoryOverflow);
+ });
+ button.addEventListener('dblclick',event=>event.preventDefault());
+});
