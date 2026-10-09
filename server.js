@@ -1,5 +1,6 @@
 const {mergeMemories,mergeProfileMemories,parseMemoryImport,parseProfileDocument,replaceProfileMemories,memoryContext,validateSettings}=require('./memory');
 const {recordActivity,activitySummary,activityStreaks}=require('./activity');
+const {workspaceApi,ownProject,pluginAllowed,recordUsage,clearImageReferences}=require('./workspace');
 const {previewFile}=require('./file-preview');
 const {saveFile,mimeTypes} = require('./files');
 const { validateImage, visionMessages, prepareProfileImage } = require('./images');
@@ -67,12 +68,15 @@ async function owned(client, id, userId, lock = false) {
 async function getConversation(pool, id, userId) {
   return transaction(pool, async (client) => {
     const conversation = await owned(client, id, userId, true);
-    const messages = await client.query('SELECT id,role,content,image,generation_ms AS "generationMs" FROM messages WHERE conversation_id=$1 ORDER BY id', [id]);
+    const messages = await client.query(`SELECT m.id,m.role,m.content,m.image,m.generation_ms AS "generationMs",u.total_tokens AS "totalTokens",w.file_id AS "workFileId" FROM messages m LEFT JOIN api_usage u ON u.assistant_message_id=m.id LEFT JOIN work_runs w ON w.assistant_message_id=m.id WHERE m.conversation_id=$1 ORDER BY m.id`, [id]);
     const pending = await client.query(`SELECT request_id AS id,prompt,model,image,file_id AS "fileId",started_at AS "startedAt",
       CASE WHEN status='pending' AND started_at < now()-interval '150 seconds' THEN 'failed' ELSE status END AS status
       FROM chat_requests WHERE conversation_id=$1 AND invalidated=false ORDER BY started_at DESC LIMIT 1`, [id]);
-    return { id, title: conversation.title, model: conversation.model, messages: messages.rows,
-      request: pending.rows[0]?.status !== 'complete' ? pending.rows[0] || null : null };
+    let recoveryRequest=pending.rows[0]?.status!=='complete'&&pending.rows[0]?{...pending.rows[0],mode:'chat'}:null;
+    const work=(await client.query('SELECT * FROM work_runs WHERE conversation_id=$1 AND user_id=$2 ORDER BY started_at DESC LIMIT 1',[id,userId])).rows[0];
+    if(work&&work.status!=='complete'&&(work.request_id===pending.rows[0]?.id||!pending.rows[0]||Date.parse(work.started_at)>=Date.parse(pending.rows[0].startedAt)))recoveryRequest={...work.payload,id:work.request_id,mode:'work',status:work.status==='pending'&&Date.now()-Date.parse(work.started_at)>300000?'failed':work.status,startedAt:work.started_at};
+    return { id, title: conversation.title, model: conversation.model, projectId:conversation.project_id,pinned:conversation.pinned,archived:conversation.archived,projectArchived:conversation.project_id?(await client.query('SELECT archived FROM projects WHERE id=$1',[conversation.project_id])).rows[0]?.archived:false, messages: messages.rows,
+      request: recoveryRequest };
   });
 }
 function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCookies = false, trustProxy = false, googleClientId = '', verifyGoogleToken }) {
@@ -108,7 +112,11 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
       const liveUser = (await client.query('SELECT * FROM users WHERE id=$1 FOR UPDATE', [user.id])).rows[0];
       const liveSession = await client.query('SELECT token_hash FROM sessions WHERE token_hash=$1 AND expires_at>now()', [user.token_hash]);
       if (!liveUser.is_active || liveUser.approval_state !== 'approved' || liveUser.must_change_password || !liveSession.rowCount) throw new HttpError(401, 'Prijavite se ponovo.');
-      await owned(client, id, user.id, true);
+      const conversation=await owned(client, id, user.id, true);
+      const project=conversation.project_id?await ownProject(client,conversation.project_id,user.id):null;
+      if(conversation.archived||project?.archived)throw new HttpError(409,'Vratite razgovor ili projekat iz arhive pre nove poruke.');
+      if(data.sourceImageFileId){const source=(await client.query("SELECT content FROM user_files WHERE id=$1 AND user_id=$2 AND kind='image'",[validId(data.sourceImageFileId),user.id])).rows[0];if(!source||!image||Buffer.from(source.content).toString('base64')!==image.content)throw new HttpError(404,'Izabrana slika nije dostupna.');}
+      const linkedFileId=data.sourceImageFileId||data.fileId||null;
       if (data.fileId) {
         const file = (await client.query('SELECT id FROM user_files WHERE id=$1 AND user_id=$2 AND (conversation_id IS NULL OR conversation_id=$3) FOR UPDATE',[validId(data.fileId),user.id,id])).rows[0];
         if(!file) throw new HttpError(404,'Prilog nije pronađen.');
@@ -119,7 +127,7 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
       if (previous && (previous.prompt !== prompt || previous.model !== selectedModel || (previous.image?.content || null) !== (image?.content || null) || (previous.image?.name || null) !== (image?.name || null))) {
         throw new HttpError(409, 'Identifikator slanja već pripada drugoj poruci.');
       }
-      if (previous?.status === 'complete') return { cached: previous.answer };
+      if (previous?.status === 'complete') return { cached: previous.answer,messageId:previous.assistant_message_id };
       // Obeležiti zahteve prekinute restartom nakon isteka vremena za odgovor.
       await client.query(`UPDATE chat_requests SET status='failed',error='Odgovor je prekinut. Ponovite slanje.'
         WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id=$1)
@@ -135,10 +143,10 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
         if (latest.request_id !== requestId) throw new HttpError(409, 'Ponoviti se može samo poslednje slanje.');
         await client.query(`UPDATE chat_requests SET status='pending',error=NULL,started_at=now() WHERE conversation_id=$1 AND request_id=$2`, [id, requestId]);
       } else {
-        await client.query(`INSERT INTO chat_requests(conversation_id,request_id,prompt,model,status,image,file_id) VALUES($1,$2,$3,$4,'pending',$5,$6)`, [id, requestId, prompt, selectedModel, image ? JSON.stringify(image) : null, data.fileId || null]);
+        await client.query(`INSERT INTO chat_requests(conversation_id,request_id,prompt,model,status,image,file_id) VALUES($1,$2,$3,$4,'pending',$5,$6)`, [id, requestId, prompt, selectedModel, image ? JSON.stringify(image) : null, linkedFileId]);
         const count = await client.query('SELECT count(*)::integer AS count FROM messages WHERE conversation_id=$1', [id]);
         if (count.rows[0].count >= 2000) throw new HttpError(400, 'Razgovor je popunjen. Otvorite novi razgovor.');
-        await client.query('INSERT INTO messages(conversation_id,role,content,image,file_id) VALUES($1,\'user\',$2,$3,$4)', [id, prompt, image ? JSON.stringify(image) : null, data.fileId || null]);
+        await client.query('INSERT INTO messages(conversation_id,role,content,image,file_id) VALUES($1,\'user\',$2,$3,$4)', [id, prompt, image ? JSON.stringify(image) : null, linkedFileId]);
         await recordActivity(client,user.id,1);
         if (!count.rows[0].count) await client.query('UPDATE conversations SET title=$1 WHERE id=$2', [prompt.slice(0, 42), id]);
       }
@@ -149,9 +157,10 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
         liveUser.profile_memories=mergeProfileMemories(liveUser.profile_memories,[{content:prompt,conversationId:id}]);
         await client.query('UPDATE users SET memory_entries=$2,profile_memories=$3 WHERE id=$1',[user.id,JSON.stringify(liveUser.memory_entries),JSON.stringify(liveUser.profile_memories)]);
       }
-      return { messages: history.rows.reverse(), context: memoryContext(liveUser) };
+      return { messages: history.rows.reverse(), context: [...memoryContext(liveUser),...(project?.instructions?[{role:'system',content:'Uputstva projekta; trenutni korisnikov zahtev ima prednost: '+project.instructions}]:[])] };
     });
-    if ('cached' in claim) return { message: claim.cached };
+    if ('cached' in claim) return { message: claim.cached,messageId:claim.messageId };
+    let usageId=null;
     try {
       const thinking = selectedModel === 'deepseek-flash-thinking';
       const upstream = await fetchImpl('https://api.deepseek.com/chat/completions', {
@@ -163,27 +172,33 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
           ...(thinking ? { reasoning_effort: 'high' } : { temperature: 0.7 }) })
       });
       if (!upstream.ok) {
+        usageId=await recordUsage(pool,user,id,requestId,selectedModel);
         const explanation = upstream.status === 402 ? 'DeepSeek nalog nema dovoljno kredita. Obratite se administratoru.'
           : upstream.status === 429 ? 'DeepSeek je trenutno preopterećen. Pokušajte ponovo.'
           : 'DeepSeek trenutno ne može da obradi zahtev. Pokušajte ponovo.';
         throw new HttpError(502, explanation);
       }
       const result = await upstream.json();
+      usageId=await recordUsage(pool,user,id,requestId,selectedModel,result);
       const answer = result.choices?.[0]?.message?.content;
       if (typeof answer !== 'string' || !answer.trim()) throw new HttpError(502, 'Model nije vratio odgovor. Ponovite slanje.');
       if (result.choices[0].finish_reason === 'length') throw new HttpError(502, 'Odgovor je dostigao ograničenje dužine. Pokušajte sa kraćim pitanjem.');
       const generationMs = Math.round(performance.now() - generationStarted);
+      let messageId=null;
       await transaction(pool, async (client) => {
         await owned(client, id, user.id, true);
         const finished = await client.query(`UPDATE chat_requests SET status='complete',answer=$3
           WHERE conversation_id=$1 AND request_id=$2 AND status='pending' RETURNING request_id`, [id, requestId, answer]);
         if (finished.rowCount) {
-          await client.query('INSERT INTO messages(conversation_id,role,content,generation_ms) VALUES($1,\'assistant\',$2,$3)', [id, answer, generationMs]);
+          messageId=(await client.query('INSERT INTO messages(conversation_id,role,content,generation_ms) VALUES($1,\'assistant\',$2,$3) RETURNING id', [id, answer, generationMs])).rows[0].id;
+          await client.query('UPDATE chat_requests SET assistant_message_id=$3 WHERE conversation_id=$1 AND request_id=$2',[id,requestId,messageId]);
+          await client.query('UPDATE api_usage SET assistant_message_id=$2 WHERE id=$1',[usageId,messageId]);
           await client.query('UPDATE conversations SET updated_at=now() WHERE id=$1', [id]);
         }
       });
-      return { message: answer };
+      return { message: answer,messageId };
     } catch (error) {
+      if(!usageId)await recordUsage(pool,user,id,requestId,selectedModel).catch(()=>{});
       const message = error instanceof HttpError ? error.message : 'Odgovor nije završen. Pokušajte ponovo.';
       await pool.query(`UPDATE chat_requests SET status='failed',error=$3 WHERE conversation_id=$1 AND request_id=$2 AND status='pending'`, [id, requestId, message]);
       throw new HttpError(error.status || 502, message);
@@ -264,6 +279,7 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
         return sendJson(response, 200, { ok: true });
       }
       if (user.must_change_password) throw new HttpError(403, 'Pre nastavka promenite početnu lozinku.');
+      if(await workspaceApi({pool,user,data,pathname,method:request.method,url,chat,send:body=>sendJson(response,200,body)}))return;
       if (pathname === '/api/profile' && request.method === 'GET') {
         return sendJson(response,200,{image:user.profile_image,streaks:await activityStreaks(pool,user.id)});
       }
@@ -338,13 +354,14 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
         return sendJson(response,200,{ok:true});
       }
       if (pathname === '/api/files' && request.method === 'GET') {
-        const files=await pool.query('SELECT f.id,f.name,f.kind,f.direction,f.mime,f.created_at,f.conversation_id,c.title,octet_length(f.content) AS bytes FROM user_files f LEFT JOIN conversations c ON c.id=f.conversation_id WHERE f.user_id=$1 ORDER BY f.created_at DESC',[user.id]);
+        const files=await pool.query('SELECT f.id,f.name,f.kind,f.direction,f.mime,f.created_at,f.conversation_id,f.project_id,c.title,octet_length(f.content) AS bytes FROM user_files f LEFT JOIN conversations c ON c.id=f.conversation_id WHERE f.user_id=$1 ORDER BY f.created_at DESC',[user.id]);
         return sendJson(response,200,{files:files.rows});
       }
       const previewRoute=pathname.match(/^\/api\/files\/([0-9a-f-]+)\/preview$/i);
       if(previewRoute && request.method==='GET') {
         const file=(await pool.query('SELECT * FROM user_files WHERE id=$1 AND user_id=$2',[validId(previewRoute[1]),user.id])).rows[0];
         if(!file)throw new HttpError(404,'Datoteka nije pronađena.');
+        const extension=path.extname(file.name).slice(1).toLowerCase();if(['pdf','docx','xlsx','pptx'].includes(extension))await pluginAllowed(pool,user.id,extension);
         return sendJson(response,200,await previewFile(file,Number(new URL(request.url,'http://localhost').searchParams.get('page')||1)));
       }
       const fileRoute=pathname.match(/^\/api\/files\/([0-9a-f-]+)$/i);
@@ -374,8 +391,7 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
             const pending=await client.query("SELECT 1 FROM chat_requests WHERE conversation_id=$1 AND status='pending' AND started_at>now()-interval '150 seconds'",[file.conversation_id]);
             if(pending.rowCount)throw new HttpError(409,'Sačekajte završetak odgovora pre brisanja.');
             if(file.kind==='image') {
-              await client.query('UPDATE messages SET image=NULL WHERE file_id=$1',[fileId]);
-              await client.query('UPDATE chat_requests SET image=NULL WHERE file_id=$1',[fileId]);
+              await clearImageReferences(client,fileId,user.id);
             }
             await client.query('DELETE FROM user_files WHERE id=$1',[fileId]);
           });
@@ -387,20 +403,25 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
         return sendJson(response,200,{conversations:stats.conversations,userMessages:stats.user_messages,answers:stats.answers});
       }
       if (pathname === '/api/documents/export' && request.method === 'POST') {
+        await pluginAllowed(pool,user.id,data.format);
         const conversation = await owned(pool, data.conversationId, user.id);
         if (data.messageId !== undefined && !/^\d+$/.test(String(data.messageId))) throw new HttpError(400, 'Neispravna poruka.');
         const rows = await pool.query("SELECT content FROM messages WHERE conversation_id=$1 AND role='assistant'" + (data.messageId !== undefined ? ' AND id=$2' : '') + ' ORDER BY id', data.messageId !== undefined ? [conversation.id, data.messageId] : [conversation.id]);
         if (!rows.rowCount) throw new HttpError(404, 'Nema odgovora za izvoz.');
         await limitLogin(pool, 'export:' + user.id, 20);
         const result = await exportDocument({format:data.format, title:conversation.title, settings:data.settings, content:rows.rows.map(r=>r.content).join('\n\n')});
-        await saveFile(pool,user.id,{name:'AL-AI.'+data.format,mime:result.mime,kind:'document',direction:'export',content:result.buffer,conversationId:conversation.id});
+        const savedFile=await saveFile(pool,user.id,{name:'AL-AI.'+data.format,mime:result.mime,kind:'document',direction:'export',content:result.buffer,conversationId:conversation.id});
+        await pool.query('UPDATE user_files SET project_id=$2 WHERE id=$1',[savedFile,conversation.project_id]);
         response.writeHead(200, {'Content-Type':result.mime,'Content-Disposition':'attachment; filename="AL-AI.' + data.format + '"','Cache-Control':'no-store'});
         return response.end(result.buffer);
       }
       if (pathname === '/api/attachments/extract' && request.method === 'POST') {
         await limitLogin(pool, 'attachment:' + user.id, 20);
+        if(data.projectId)await ownProject(pool,data.projectId,user.id);
+        const extension=path.extname(data.name||'').slice(1).toLowerCase();if(['pdf','docx','xlsx','pptx'].includes(extension))await pluginAllowed(pool,user.id,extension);
         const result=await extractAttachment(data);
         result.fileId=await saveFile(pool,user.id,{name:result.name,mime:result.image?.mime || mimeTypes[path.extname(result.name).slice(1).toLowerCase()],kind:result.image?'image':'document',direction:'import',content:Buffer.from(result.image?.content || data.content,'base64')});
+        if(data.projectId)await pool.query('UPDATE user_files SET project_id=$2 WHERE id=$1',[result.fileId,data.projectId]);
         return sendJson(response, 200, result);
       }
       if (pathname.startsWith('/api/admin/')) {
@@ -443,12 +464,13 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
       }
       if (pathname === '/api/conversations' && request.method === 'GET') {
         const offset = Math.max(0, Math.min(100000, Number.parseInt(url.searchParams.get('offset'), 10) || 0));
-        const rows = await pool.query('SELECT id,title,model FROM conversations WHERE user_id=$1 ORDER BY updated_at DESC,id LIMIT 101 OFFSET $2', [user.id, offset]);
+        const projectId=url.searchParams.get('projectId');if(projectId)await ownProject(pool,projectId,user.id);
+        const rows = await pool.query('SELECT c.id,c.title,c.model,c.project_id,c.pinned FROM conversations c LEFT JOIN projects p ON p.id=c.project_id WHERE c.user_id=$1 AND NOT c.archived AND coalesce(p.archived,false)=false AND ($3::uuid IS NULL OR c.project_id=$3) ORDER BY c.sort_order,c.id LIMIT 101 OFFSET $2', [user.id, offset,projectId||null]);
         return sendJson(response, 200, { conversations: rows.rows.slice(0, 100), hasMore: rows.rowCount > 100 });
       }
       if (pathname === '/api/conversations' && request.method === 'POST') {
         const id = randomUUID();
-        await pool.query('INSERT INTO conversations(id,user_id,title,model) VALUES($1,$2,$3,$4)', [id, user.id, 'Novi razgovor', model(data.model || 'deepseek-flash')]);
+        await transaction(pool,async client=>{await client.query('SELECT id FROM users WHERE id=$1 FOR UPDATE',[user.id]);if(data.projectId)await ownProject(client,data.projectId,user.id);await client.query("INSERT INTO conversations(id,user_id,title,model,project_id,sort_order) SELECT $1,$2,$3,$4,$5,coalesce(min(sort_order),1)-1 FROM conversations WHERE user_id=$2",[id,user.id,'Novi razgovor',model(data.model||'deepseek-flash'),data.projectId||null]);});
         return sendJson(response, 201, { conversation: await getConversation(pool, id, user.id) });
       }
       if (pathname === '/api/conversations/import' && request.method === 'POST') {
@@ -491,7 +513,11 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
         if (request.method === 'GET') return sendJson(response, 200, { conversation: await getConversation(pool, id, user.id) });
         if (request.method === 'PATCH') {
           await transaction(pool, async (client) => {
+            await client.query('SELECT id FROM users WHERE id=$1 FOR UPDATE',[user.id]);
             await owned(client, id, user.id, true);
+            if(data.projectId!==undefined){if(data.projectId!==null)await ownProject(client,data.projectId,user.id);await client.query('UPDATE conversations SET project_id=$2 WHERE id=$1',[id,data.projectId]);}
+            if(data.archived!==undefined){if(typeof data.archived!=='boolean')throw new HttpError(400,'Neispravno arhiviranje.');await client.query('UPDATE conversations SET archived=$2 WHERE id=$1',[id,data.archived]);}
+            if(data.pinned!==undefined){if(typeof data.pinned!=='boolean')throw new HttpError(400,'Neispravno pinovanje.');await client.query('UPDATE conversations SET pinned=$2 WHERE id=$1',[id,data.pinned]);}
             if (data.title !== undefined) await client.query('UPDATE conversations SET title=$1,updated_at=now() WHERE id=$2', [text(data.title, 80, 'Naslov'), id]);
             if (data.model !== undefined) await client.query('UPDATE conversations SET model=$1,updated_at=now() WHERE id=$2', [model(data.model), id]);
           });
@@ -502,6 +528,7 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
             await owned(client, id, user.id, true);
             const busy = await client.query(`SELECT request_id FROM chat_requests WHERE conversation_id=$1 AND status='pending' AND started_at>now()-interval '150 seconds'`, [id]);
             if (busy.rowCount) throw new HttpError(409, 'Sačekajte odgovor pre brisanja razgovora.');
+            const images=(await client.query("SELECT id FROM user_files WHERE conversation_id=$1 AND user_id=$2 AND kind='image'",[id,user.id])).rows;for(const file of images)await clearImageReferences(client,file.id,user.id);
             await client.query('DELETE FROM conversations WHERE id=$1 AND user_id=$2', [id, user.id]);
           });
           return sendJson(response, 200, { ok: true });

@@ -68,7 +68,7 @@ test('Private profile image, streak statistics, memory document and settings ico
   await page.goto(app.origin);await page.locator('#loginUsername').fill('admin');await page.locator('#loginPassword').fill('Admin-password-test-123');await page.locator('#loginSubmit').click();
   await page.locator('#settingsButton').click();await page.locator('#profileImage').waitFor({state:'visible'});await page.waitForFunction(()=>document.querySelector('#streakCurrent').textContent==='4');
   assert.equal(await page.locator('#streakLongest').textContent(),'6');
-  assert.equal(await page.locator('.settings-nav button svg').count(),7);
+  assert.equal(await page.locator('.settings-nav button svg').count(),11);
   for(const width of [1440,768,390]){
     await page.setViewportSize({width,height:900});
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));

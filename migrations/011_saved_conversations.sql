@@ -1,0 +1,1 @@
+CREATE TABLE saved_conversations(id uuid PRIMARY KEY,user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,source_id uuid NOT NULL,title text NOT NULL,messages jsonb NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now(),UNIQUE(user_id,source_id));

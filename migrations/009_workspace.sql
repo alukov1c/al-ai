@@ -1,0 +1,10 @@
+CREATE TABLE projects(id uuid PRIMARY KEY,user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,name text NOT NULL,instructions text NOT NULL DEFAULT '',pinned boolean NOT NULL DEFAULT false,pin_order integer NOT NULL DEFAULT 0,created_at timestamptz NOT NULL DEFAULT now());
+ALTER TABLE conversations ADD COLUMN project_id uuid REFERENCES projects(id) ON DELETE SET NULL;
+ALTER TABLE conversations ADD COLUMN pinned boolean NOT NULL DEFAULT false;
+ALTER TABLE conversations ADD COLUMN pin_order integer NOT NULL DEFAULT 0;
+ALTER TABLE user_files ADD COLUMN project_id uuid REFERENCES projects(id) ON DELETE SET NULL;
+ALTER TABLE users ADD COLUMN document_plugins jsonb NOT NULL DEFAULT '{"pdf":true,"docx":true,"xlsx":true,"pptx":true}'::jsonb;
+ALTER TABLE chat_requests ADD COLUMN assistant_message_id bigint REFERENCES messages(id) ON DELETE SET NULL;
+CREATE TABLE api_usage(id uuid PRIMARY KEY,user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,conversation_id uuid REFERENCES conversations(id) ON DELETE SET NULL,project_id uuid REFERENCES projects(id) ON DELETE SET NULL,assistant_message_id bigint REFERENCES messages(id) ON DELETE SET NULL,request_id uuid NOT NULL,model text NOT NULL,prompt_tokens bigint,completion_tokens bigint,total_tokens bigint,cache_hit_tokens bigint,reasoning_tokens bigint,created_at timestamptz NOT NULL DEFAULT now());
+CREATE INDEX api_usage_owner ON api_usage(user_id,created_at);
+CREATE TABLE work_runs(user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,request_id uuid NOT NULL,conversation_id uuid NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,payload jsonb NOT NULL,prepared jsonb,status text NOT NULL DEFAULT 'pending',file_id uuid REFERENCES user_files(id) ON DELETE SET NULL,assistant_message_id bigint REFERENCES messages(id) ON DELETE SET NULL,error text,started_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(user_id,request_id));

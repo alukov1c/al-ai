@@ -67,3 +67,7 @@ RENDER-POKRETANJE.md
 
 # JavaScript datoteke
 *.js
+
+# Obavezni moduli prvog paketa
+!workspace.js
+!test/workspace.test.js

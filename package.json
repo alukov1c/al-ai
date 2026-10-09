@@ -5,7 +5,7 @@
   "description": "DeepSeek asistent sa privatnim korisničkim razgovorima u PostgreSQL bazi",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --check app.js && node --check auth.js && node --check db.js && node --check google-auth.js && node --check config.js && node --check attachments.js && node --check attachment-worker.js && node --check exports.js && node --check export-worker.js && node --check document-export.js && node --check images.js && node --check files.js && node --check math-format.js && node --check pdf-math.js && node --check file-preview.js && node --check memory.js && node --check activity.js",
+    "check": "node --check server.js && node --check app.js && node --check auth.js && node --check db.js && node --check google-auth.js && node --check config.js && node --check attachments.js && node --check attachment-worker.js && node --check exports.js && node --check export-worker.js && node --check document-export.js && node --check images.js && node --check files.js && node --check math-format.js && node --check pdf-math.js && node --check file-preview.js && node --check memory.js && node --check activity.js && node --check workspace.js",
     "test": "node --test --test-concurrency=1 test/accounts.test.js test/config.test.js test/attachments.test.js test/images-files.test.js test/memory.test.js",
     "db:migrate": "node scripts/migrate.js",
     "admin:reset": "node scripts/reset-admin.js",
@@ -16,7 +16,8 @@
     "test:math-export": "node --test test/math-export.test.js",
     "test:preview": "node --test test/file-preview.test.js",
     "test:settings": "node --test --test-concurrency=1 test/settings-upgrades.test.js",
-    "test:profile": "node --test --test-concurrency=1 test/profile-settings.test.js"
+    "test:profile": "node --test --test-concurrency=1 test/profile-settings.test.js",
+    "test:workspace": "node --test --test-concurrency=1 test/workspace.test.js"
   },
   "engines": {
     "node": ">=20.16.0 <21 || >=22.3.0"
