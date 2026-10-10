@@ -1570,19 +1570,4 @@ textarea::placeholder {
 /* Naslovi se skraćuju bez trotačke; dugme ⋯ je zasebna kontrola. */
 #history .history-item,#projectList .history-item,#pinnedList .history-item,.workspace-item,.history-title{ text-overflow:clip; }
 
-.welcome{container-type:inline-size}
-.welcome-topics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:16px 0 8px}
-.welcome-topic{position:relative;min-width:0;max-width:100%;min-height:44px;padding:8px 10px;border:1px solid var(--blue);border-radius:1.2em;background:rgba(255,255,255,.76);backdrop-filter:blur(12px);box-shadow:0 0 14px rgba(37,99,235,.14);color:#1d4ed8;font:inherit;font-size:13px;line-height:1.4;text-wrap:balance;overflow-wrap:anywhere;cursor:pointer;transition:background .2s,box-shadow .2s}
-.welcome-topic:nth-child(3),.welcome-topic:last-child{grid-column:span 2}
-@container (min-width:520px){
-  .welcome-topics{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
-  .welcome-topic{padding:10px 12px;font-size:14px}
-  .welcome-topic:first-child,.welcome-topic:nth-child(3){grid-column:span 2}
-  .welcome-topic:last-child{grid-column:auto}
-}
-@container (min-width:720px){
-  .welcome-topics{grid-template-columns:repeat(4,minmax(0,1fr))}
-  .welcome-topic:first-child{grid-column:auto}
-  .welcome-topic:nth-child(3),.welcome-topic:last-child{grid-column:span 2}
-}
-.welcome-topic:hover{background:#edf3ff;box-shadow:0 0 18px rgba(37,99,235,.2)}.welcome-topic:focus-visible{outline:2px solid #2563eb;outline-offset:3px}.welcome-topic:disabled{opacity:.5;cursor:default}@media(prefers-reduced-motion:reduce){.welcome-topic:before{animation:none}.welcome-topic{transition:none}}
+.welcome-topics{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin:16px 0 8px}.welcome-topic{position:relative;max-width:100%;padding:10px 15px;border:1px solid var(--blue);border-radius:1.2em;background:rgba(255,255,255,.76);backdrop-filter:blur(12px);box-shadow:0 0 14px rgba(37,99,235,.14);color:#1d4ed8;font:inherit;font-size:14px;line-height:1.5;cursor:pointer;transition:background .2s,box-shadow .2s}.welcome-topic:hover{background:#edf3ff;box-shadow:0 0 18px rgba(37,99,235,.2)}.welcome-topic:focus-visible{outline:2px solid #2563eb;outline-offset:3px}.welcome-topic:disabled{opacity:.5;cursor:default}@media(prefers-reduced-motion:reduce){.welcome-topic:before{animation:none}.welcome-topic{transition:none}}
