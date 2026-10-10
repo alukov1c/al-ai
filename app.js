@@ -200,8 +200,10 @@ async function refreshList(more = false) {
   hasMore = result.hasMore;
   renderHistory();
   await refreshWorkspace();
+  if ($('#conversationTopics')?.open) await refreshTransferTargets();
 }
 async function selectConversation(id) {
+  $('#conversationTopics').open = false;
   clearTimeout(pollTimer);
   const version = epoch;
   const result = await api('/api/conversations/' + id);
@@ -483,7 +485,13 @@ function renderConversation({ preserveScroll = false } = {}) {
   messagesElement.replaceChildren();
   const isWelcome = !current?.messages.length;
   messagesElement.classList.toggle('welcome-screen', isWelcome);
-  if (!current?.messages.length) messagesElement.append(welcomeElement);
+  $('#conversationTopics').hidden = isWelcome;
+  if (isWelcome) $('#conversationTopics').open = false;
+  $('#conversationActions').hidden = isWelcome;
+  if (isWelcome) {
+    welcomeElement.querySelectorAll('.welcome-topic, .suggestion').forEach(button => { button.disabled = isSending; });
+    messagesElement.append(welcomeElement);
+  }
   else current.messages.forEach(({ role, content, id, image, generationMs,totalTokens,workFileId }) => {
     const row = addMessageElement(role, content, id, image, generationMs,totalTokens,workFileId);
     row.dataset.messageId = id;
@@ -1332,12 +1340,77 @@ document.querySelectorAll('.category-toggle').forEach(button=>{
 });
 async function beginTopicConversation(prompt){
   if(isSending||!currentUser)return;
-  const version=epoch;let created=false;
-  await action(async()=>{
-    const result=await api('/api/conversations','POST',{model:modelSelect.value,projectId:activeProject});if(version!==epoch)return;
-    clearAttachment();workSelection.clear();$('#chatMode').value='chat';$('#workOptions').hidden=true;input.value='';input.placeholder='Pošaljite poruku AL AI.';input.style.height='auto';
-    current=result.conversation;activeId=current.id;await refreshList();if(version!==epoch)return;syncModelControls();renderConversation();created=true;
-  });
-  if(created&&version===epoch)await sendMessage(prompt);
+  if(current?.archived||current?.projectArchived){notice('Vratite razgovor ili projekat iz arhive pre nove poruke.');return;}
+  clearAttachment();workSelection.clear();$('#chatMode').value='chat';$('#workOptions').hidden=true;input.value='';input.placeholder='Pošaljite poruku AL AI.';input.style.height='auto';
+  $('#conversationTopics').open=false;
+  await sendMessage(prompt);
 }
-document.querySelectorAll('.welcome-topic').forEach(button=>button.addEventListener('click',()=>beginTopicConversation(button.dataset.prompt)));
+const conversationTopics=document.createElement('details');
+conversationTopics.id='conversationTopics';conversationTopics.className='conversation-topic-picker';conversationTopics.hidden=true;
+const topicSummary=document.createElement('summary');topicSummary.textContent='Prenos razgovora';conversationTopics.append(topicSummary);
+const topicOptions=document.createElement('div');topicOptions.className='conversation-topic-options';conversationTopics.append(topicOptions);
+const conversationActions=document.createElement('div');
+conversationActions.id='conversationActions';conversationActions.className='conversation-actions';conversationActions.hidden=true;
+const deleteConversation=document.createElement('button');deleteConversation.id='deleteCurrentConversation';deleteConversation.type='button';deleteConversation.className='delete-conversation';deleteConversation.dataset.busy='';
+deleteConversation.innerHTML='<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8"/></svg><span>Obrisati konverzaciju</span>';
+deleteConversation.addEventListener('click',()=>{
+  if(isSending||!current)return;
+  const id=current.id,version=epoch;
+  if(!window.confirm('Obrisati ceo trenutno otvoreni razgovor i njegove povezane datoteke?'))return;
+  action(async()=>{
+    await api('/api/conversations/'+id,'DELETE',{});
+    if(version!==epoch)return;
+    if(current?.id===id){
+      current=null;activeId=null;clearAttachment();workSelection.clear();input.value='';input.style.height='auto';
+      renderConversation();
+    }
+    await refreshList();
+    notice('Konverzacija je obrisana.');
+  });
+});
+conversationActions.append(conversationTopics,deleteConversation);
+$('.workspace-composer').append(conversationActions);
+document.querySelectorAll('.welcome-topic').forEach(button=>{
+  button.addEventListener('click',()=>beginTopicConversation(button.dataset.prompt));
+});
+
+let transferListVersion=0,transferListTimer;
+conversationTopics.addEventListener('toggle',()=>{
+  clearTimeout(transferListTimer);
+  if(conversationTopics.open)refreshTransferTargets();
+  else transferListVersion++;
+});
+async function refreshTransferTargets(){
+  clearTimeout(transferListTimer);
+  if(!conversationTopics.open||!currentUser||!current)return;
+  const load=++transferListVersion,version=epoch,sourceId=current.id;
+  const previousScroll=topicOptions.scrollTop,focusedId=document.activeElement?.dataset.transferId;
+  const heading=document.createElement('strong');heading.textContent='Prenesite razgovor u: ';
+  const status=document.createElement('span');status.className='transfer-status';status.textContent='Učitavanje…';if(!topicOptions.querySelector('[data-transfer-id]'))topicOptions.replaceChildren(heading,status);
+  try{
+    const targets=[];let offset=0,more=true;
+    while(more){const result=await api('/api/conversations?offset='+offset);if(version!==epoch||load!==transferListVersion||!conversationTopics.open||current?.id!==sourceId)return;targets.push(...result.conversations);more=result.hasMore;offset+=result.conversations.length;if(more&&!result.conversations.length)break;}
+    topicOptions.replaceChildren(heading);
+    for(const item of targets.filter(item=>item.id!==sourceId)){
+      const button=document.createElement('button');button.type='button';button.className='conversation-topic';button.textContent=item.title;button.dataset.busy='';button.dataset.transferId=item.id;button.disabled=isSending;
+      button.addEventListener('click',()=>transferLatestExchange(item.id,item.title));topicOptions.append(button);
+    }
+    if(topicOptions.children.length===1){status.textContent='Nema drugih dostupnih razgovora.';topicOptions.append(status);}
+    topicOptions.scrollTop=previousScroll;
+    if(focusedId)topicOptions.querySelector('[data-transfer-id="'+focusedId+'"]')?.focus({preventScroll:true});
+  }catch(error){if(version===epoch&&load===transferListVersion){status.textContent=error.message;topicOptions.replaceChildren(heading,status);}}
+  finally{if(version===epoch&&load===transferListVersion&&conversationTopics.open)transferListTimer=setTimeout(refreshTransferTargets,5000);}
+}
+async function transferLatestExchange(targetId,title){
+  if(isSending||!current)return;
+  const pair=current.messages.slice(-2);
+  if(pair.length!==2||pair[0].role!=='user'||pair[1].role!=='assistant'){notice('Sačekajte odgovor za poslednju poruku pre prenosa.');return;}
+  const sourceId=current.id,version=epoch;
+  await action(async()=>{
+    const result=await api('/api/conversations/'+sourceId+'/transfer','POST',{targetId,messageIds:pair.map(m=>m.id)});
+    if(version!==epoch)return;
+    conversationTopics.open=false;
+    await refreshList();
+    notice(result.copied?'Poruka i odgovor su preneti u: '+title+'.':'Ova poruka i odgovor su već preneti u: '+title+'.');
+  });
+}

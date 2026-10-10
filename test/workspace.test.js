@@ -127,3 +127,57 @@ test('Meni sa tri tačke, sačuvane konverzacije i arhiviranje',async t=>{
  assert.equal((await other.request('/api/saved-conversations/'+savedId,'DELETE',{})).status,404);assert.equal((await admin.request('/api/saved-conversations/'+savedId,'DELETE',{})).status,200);assert.equal((await admin.request('/api/saved-conversations')).data.items.length,0);
  assert.deepEqual(errors,[]);
 });
+test('Topic conversations receive per-user sequential titles',async t=>{
+ const app=await fixture();t.after(()=>app.close());const admin=app.client();await admin.login('admin','Admin-password-test-123');
+ async function create(client,prompt,projectId=null){
+  const created=await client.request('/api/conversations','POST',{projectId});assert.equal(created.status,201);const id=created.data.conversation.id;
+  const attempt={conversationId:id,requestId:randomUUID(),model:'deepseek-flash',prompt};assert.equal((await client.request('/api/chat','POST',attempt)).status,200);
+  const conversation=(await client.request('/api/conversations/'+id)).data.conversation;return {id,title:conversation.title,attempt};
+ }
+ const topics=['Telekomunikacije','IKT','Primenjena i kompjuterska fizika','Programiranje','AI','JavaScript','Veb','Investicioni menadžment','Preduzetništvo','Šta god'];
+ const project=(await admin.request('/api/projects','POST',{name:'Numbered topics'})).data.id;
+ for(const topic of topics){
+  // Keep fixture requests outside the production per-minute message limit.
+  await app.pool.query("UPDATE chat_requests SET started_at=now()-interval '2 minutes'");
+  const first=await create(admin,topic);assert.equal(first.title,topic);
+  if(topic==='Programiranje')await admin.request('/api/conversations/'+first.id,'PATCH',{archived:true});
+  const second=await create(admin,topic,project),third=await create(admin,topic);assert.equal(second.title,topic+'(1)');assert.equal(third.title,topic+'(2)');
+  assert.equal((await admin.request('/api/chat','POST',second.attempt)).status,200);
+  assert.equal((await admin.request('/api/chat','POST',{...second.attempt,requestId:randomUUID()})).status,200);
+  assert.equal((await admin.request('/api/conversations/'+second.id)).data.conversation.title,topic+'(1)');
+ }
+ const parallel=await Promise.all([create(admin,'Programiranje'),create(admin,'Programiranje')]);assert.deepEqual(parallel.map(c=>c.title).sort(),['Programiranje(3)','Programiranje(4)']);
+ await admin.request('/api/conversations/'+parallel[1].id,'PATCH',{title:'Programiranje(7)'});assert.equal((await create(admin,'Programiranje')).title,'Programiranje(8)');
+ await admin.request('/api/admin/users','POST',{username:'number-other',displayName:'Other',password:'Initial-password-123'});const other=app.client();await other.login('number-other','Initial-password-123');await other.request('/api/password','POST',{currentPassword:'Initial-password-123',password:'Changed-password-456'});await other.login('number-other','Changed-password-456');assert.equal((await create(other,'Programiranje')).title,'Programiranje');
+ assert.equal((await create(admin,'A different ordinary prompt')).title,'A different ordinary prompt');
+});
+
+test('Conversation transfer copies latest exchange and refreshes all destinations',async t=>{
+ const app=await fixture();let browser;t.after(async()=>{await browser?.close();await app.close();});
+ const admin=app.client();await admin.login('admin','Admin-password-test-123');const user=(await admin.request('/api/me')).data.user.id;
+ app.setUpstream(async(url,request)=>{app.calls.push(JSON.parse(request.body));return {ok:true,json:async()=>({choices:[{message:{content:'Transfer answer'},finish_reason:'stop'}],usage:{prompt_tokens:10,completion_tokens:2,total_tokens:12}})};});
+ async function conversation(title,projectId=null){const c=(await admin.request('/api/conversations','POST',{projectId})).data.conversation;await admin.request('/api/conversations/'+c.id,'PATCH',{title});return c;}
+ async function send(id,prompt,fileId){const r=await admin.request('/api/chat','POST',{conversationId:id,requestId:randomUUID(),model:'deepseek-flash',prompt,fileId});assert.equal(r.status,200);}
+ const project=(await admin.request('/api/projects','POST',{name:'Transfer project'})).data.id;
+ const source=await conversation('Transfer source'),target=await conversation('Transfer target',project),archived=await conversation('Hidden archived');await admin.request('/api/conversations/'+archived.id,'PATCH',{archived:true});await admin.request('/api/conversations/'+target.id,'PATCH',{pinned:true});
+ await send(target.id,'Original destination');await send(source.id,'Earlier source message');
+ const imported=(await admin.request('/api/attachments/extract','POST',{name:'source.txt',content:Buffer.from('Attached content').toString('base64')})).data.fileId;
+ await send(source.id,'Latest source message',imported);
+ const sourceData=(await admin.request('/api/conversations/'+source.id)).data.conversation,pair=sourceData.messages.slice(-2),workId=randomUUID();
+ await app.pool.query("INSERT INTO user_files(id,user_id,conversation_id,name,mime,kind,direction,content) VALUES($1,$2,$3,'output.txt','text/plain','document','export',$4)",[workId,user,source.id,Buffer.from('Generated output')]);
+ await app.pool.query("INSERT INTO work_runs(user_id,request_id,conversation_id,payload,status,file_id,assistant_message_id) VALUES($1,$2,$3,'{}','complete',$4,$5)",[user,randomUUID(),source.id,workId,pair[1].id]);
+ const payload={targetId:target.id,messageIds:pair.map(m=>m.id)};
+ assert.equal((await admin.request('/api/conversations/'+source.id+'/transfer','POST',{...payload,targetId:source.id})).status,400);
+ assert.equal((await admin.request('/api/conversations/'+source.id+'/transfer','POST',{...payload,targetId:archived.id})).status,409);
+ assert.equal((await admin.request('/api/conversations/'+source.id+'/transfer','POST',{...payload,messageIds:sourceData.messages.slice(0,2).map(m=>m.id)})).status,409);
+ await app.pool.query("UPDATE chat_requests SET status='pending',started_at=now() WHERE conversation_id=$1",[source.id]);assert.equal((await admin.request('/api/conversations/'+source.id+'/transfer','POST',payload)).status,409);await app.pool.query("UPDATE chat_requests SET status='complete' WHERE conversation_id=$1",[source.id]);
+ await admin.request('/api/admin/users','POST',{username:'transfer-other',displayName:'Other',password:'Initial-password-123'});const other=app.client();await other.login('transfer-other','Initial-password-123');await other.request('/api/password','POST',{currentPassword:'Initial-password-123',password:'Changed-password-456'});await other.login('transfer-other','Changed-password-456');assert.equal((await other.request('/api/conversations/'+source.id+'/transfer','POST',payload)).status,404);
+ const extras=Array.from({length:105},(_,i)=>({id:randomUUID(),title:'Extra target '+i}));await app.pool.query("INSERT INTO conversations(id,user_id,title,model) SELECT id,$1,title,'deepseek-flash' FROM jsonb_to_recordset($2::jsonb) AS x(id uuid,title text)",[user,JSON.stringify(extras)]);
+ browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});const page=await browser.newPage({viewport:{width:390,height:900}});const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.route('https://accounts.google.com/**',r=>r.abort());await page.route('https://fonts.googleapis.com/**',r=>r.fulfill({contentType:'text/css',body:''}));await page.goto(app.origin,{waitUntil:'domcontentloaded'});await page.locator('#loginUsername').fill('admin');await page.locator('#loginPassword').fill('Admin-password-test-123');await page.locator('#loginSubmit').click();await page.locator('#welcome').waitFor({state:'visible'});await page.evaluate(id=>selectConversation(id),source.id);
+ await page.locator('#conversationTopics summary').click();await page.locator('[data-transfer-id="'+target.id+'"]').waitFor();await page.waitForFunction(()=>document.querySelectorAll('[data-transfer-id]').length===106);assert.equal(await page.locator('.conversation-topic-options>strong').textContent(),'Prenesite razgovor u: ');assert.equal(await page.locator('#conversationTopics summary').textContent(),'Prenos razgovora');assert.equal(await page.locator('[data-transfer-id="'+source.id+'"]').count(),0);assert.equal(await page.locator('[data-transfer-id="'+archived.id+'"]').count(),0);
+ const bounds=await page.locator('.conversation-topic-options').boundingBox();assert.ok(bounds.x>=0&&bounds.x+bounds.width<=390);const menuScroll=await page.locator('.conversation-topic-options').evaluate(e=>{e.scrollTop=400;return e.scrollTop;});await admin.request('/api/conversations/'+target.id,'PATCH',{title:'Renamed transfer target'});await page.locator('[data-transfer-id="'+target.id+'"]').filter({hasText:'Renamed transfer target'}).waitFor({timeout:12000});assert.equal(await page.locator('.conversation-topic-options').evaluate(e=>e.scrollTop),menuScroll);fs.mkdirSync('test-artifacts',{recursive:true});await page.screenshot({path:'test-artifacts/conversation-transfer-390.png',animations:'disabled'});
+ await page.locator('[data-transfer-id="'+target.id+'"]').click();await page.waitForFunction(()=>document.querySelector('#appNotice').textContent.includes('Renamed transfer target')&&!document.querySelector('#newChatButton').disabled);
+ const transferred=(await admin.request('/api/conversations/'+target.id)).data.conversation;assert.equal(transferred.messages.length,4);assert.deepEqual(transferred.messages.slice(-2).map(m=>m.content),pair.map(m=>m.content));assert.equal(Number(transferred.messages.at(-1).totalTokens),12);assert.equal(transferred.messages.at(-1).generationMs,pair[1].generationMs);const copiedWork=transferred.messages.at(-1).workFileId;assert.ok(copiedWork&&copiedWork!==workId);assert.equal(app.calls.length,3);
+ assert.equal((await admin.request('/api/conversations/'+source.id+'/transfer','POST',payload)).data.copied,0);assert.equal((await admin.request('/api/conversations/'+target.id)).data.conversation.messages.length,4);assert.equal((await admin.request('/api/conversations/'+source.id)).data.conversation.messages.length,4);
+ assert.equal((await admin.request('/api/conversations/'+source.id,'DELETE',{})).status,200);assert.equal((await admin.request('/api/files/'+copiedWork)).status,200);const copiedImport=(await app.pool.query("SELECT file_id FROM messages WHERE conversation_id=$1 AND role='user' ORDER BY id DESC LIMIT 1",[target.id])).rows[0].file_id;assert.ok(copiedImport&&copiedImport!==imported);assert.equal((await admin.request('/api/files/'+copiedImport)).status,200);assert.equal((await admin.request('/api/usage')).data.calls,3);assert.deepEqual(errors,[]);
+});

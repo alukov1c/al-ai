@@ -16,6 +16,25 @@ const { HttpError, hashToken, username, hashPassword, verifyPassword, publicUser
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const models = new Set(['deepseek-flash', 'deepseek-flash-thinking']);
+const conversationTopics = new Set(['Telekomunikacije','IKT','Primenjena i kompjuterska fizika','Programiranje','AI','JavaScript','Veb','Investicioni menadžment','Preduzetništvo','Šta god']);
+async function firstConversationTitle(client, userId, conversationId, prompt) {
+  if (!conversationTopics.has(prompt)) return prompt.slice(0, 42);
+  const existing = await client.query(
+    "SELECT title FROM conversations WHERE user_id=$1 AND id<>$3 AND (title=$2 OR left(title,length($2)+1)=$2||'(')",
+    [userId, prompt, conversationId]
+  );
+  let highest = -1;
+  for (const { title } of existing.rows) {
+    if (title === prompt) { highest = Math.max(highest, 0); continue; }
+    const suffix = title.slice(prompt.length);
+    if (/^\([1-9]\d*\)$/.test(suffix)) {
+      const number = Number(suffix.slice(1, -1));
+      if (Number.isSafeInteger(number)) highest = Math.max(highest, number);
+    }
+  }
+  return highest < 0 ? prompt : prompt + '(' + (highest + 1) + ')';
+}
+
 const publicFiles = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
   ['/index.html', ['index.html', 'text/html; charset=utf-8']],
@@ -68,7 +87,7 @@ async function owned(client, id, userId, lock = false) {
 async function getConversation(pool, id, userId) {
   return transaction(pool, async (client) => {
     const conversation = await owned(client, id, userId, true);
-    const messages = await client.query(`SELECT m.id,m.role,m.content,m.image,m.generation_ms AS "generationMs",u.total_tokens AS "totalTokens",w.file_id AS "workFileId" FROM messages m LEFT JOIN api_usage u ON u.assistant_message_id=m.id LEFT JOIN work_runs w ON w.assistant_message_id=m.id WHERE m.conversation_id=$1 ORDER BY m.id`, [id]);
+    const messages = await client.query(`SELECT m.id,m.role,m.content,m.image,m.generation_ms AS "generationMs",coalesce(u.total_tokens,m.transferred_total_tokens) AS "totalTokens",coalesce(w.file_id,m.transferred_work_file_id) AS "workFileId" FROM messages m LEFT JOIN api_usage u ON u.assistant_message_id=m.id LEFT JOIN work_runs w ON w.assistant_message_id=m.id WHERE m.conversation_id=$1 ORDER BY m.id`, [id]);
     const pending = await client.query(`SELECT request_id AS id,prompt,model,image,file_id AS "fileId",started_at AS "startedAt",
       CASE WHEN status='pending' AND started_at < now()-interval '150 seconds' THEN 'failed' ELSE status END AS status
       FROM chat_requests WHERE conversation_id=$1 AND invalidated=false ORDER BY started_at DESC LIMIT 1`, [id]);
@@ -148,7 +167,7 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
         if (count.rows[0].count >= 2000) throw new HttpError(400, 'Razgovor je popunjen. Otvorite novi razgovor.');
         await client.query('INSERT INTO messages(conversation_id,role,content,image,file_id) VALUES($1,\'user\',$2,$3,$4)', [id, prompt, image ? JSON.stringify(image) : null, linkedFileId]);
         await recordActivity(client,user.id,1);
-        if (!count.rows[0].count) await client.query('UPDATE conversations SET title=$1 WHERE id=$2', [prompt.slice(0, 42), id]);
+        if (!count.rows[0].count) await client.query('UPDATE conversations SET title=$1 WHERE id=$2', [await firstConversationTitle(client, user.id, id, prompt), id]);
       }
       await client.query('UPDATE conversations SET model=$1,updated_at=now() WHERE id=$2', [selectedModel, id]);
       const history = await client.query('SELECT role,content,image FROM messages WHERE conversation_id=$1 ORDER BY id DESC LIMIT 30', [id]);
@@ -490,6 +509,36 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
           return { imported: true };
         });
         return sendJson(response, 200, result);
+      }
+      const transferRoute=pathname.match(/^\/api\/conversations\/([^/]+)\/transfer$/);
+      if(transferRoute && request.method==='POST'){
+        const sourceId=validId(transferRoute[1]),targetId=validId(data.targetId);
+        if(sourceId===targetId)throw new HttpError(400,'Izaberite drugi razgovor.');
+        if(!Array.isArray(data.messageIds)||data.messageIds.length!==2||data.messageIds.some(id=>!/^\d{1,18}$/.test(String(id))))throw new HttpError(400,'Izaberite poslednju poruku i njen odgovor.');
+        const result=await transaction(pool,async client=>{
+          await client.query('SELECT id FROM users WHERE id=$1 FOR UPDATE',[user.id]);
+          await owned(client,sourceId,user.id,true);const target=await owned(client,targetId,user.id,true);
+          if(target.archived||(target.project_id&&(await ownProject(client,target.project_id,user.id)).archived))throw new HttpError(409,'Izabrani razgovor je arhiviran.');
+          const pending=await client.query("SELECT 1 FROM chat_requests WHERE conversation_id=ANY($1::uuid[]) AND status='pending' AND started_at>now()-interval '150 seconds' UNION ALL SELECT 1 FROM work_runs WHERE conversation_id=ANY($1::uuid[]) AND status='pending' AND started_at>now()-interval '300 seconds'",[[sourceId,targetId]]);
+          if(pending.rowCount)throw new HttpError(409,'Sačekajte završetak odgovora pre prenosa.');
+          const rows=(await client.query('SELECT m.*,coalesce(u.total_tokens,m.transferred_total_tokens) AS tokens,coalesce(w.file_id,m.transferred_work_file_id) AS work_file FROM messages m LEFT JOIN api_usage u ON u.assistant_message_id=m.id LEFT JOIN work_runs w ON w.assistant_message_id=m.id WHERE m.conversation_id=$1 ORDER BY m.id DESC LIMIT 2',[sourceId])).rows.reverse();
+          if(rows.length!==2||rows[0].role!=='user'||rows[1].role!=='assistant'||rows.some((m,i)=>String(m.id)!==String(data.messageIds[i])))throw new HttpError(409,'Razgovor je izmenjen. Osvežite prikaz i ponovite prenos.');
+          const copied=(await client.query('SELECT transfer_source_message_id AS id FROM messages WHERE conversation_id=$1 AND transfer_source_conversation_id=$2 AND transfer_source_message_id=ANY($3::bigint[])',[targetId,sourceId,data.messageIds])).rows;
+          const remaining=rows.filter(m=>!copied.some(c=>String(c.id)===String(m.id)));
+          const count=Number((await client.query('SELECT count(*) AS count FROM messages WHERE conversation_id=$1',[targetId])).rows[0].count);
+          if(count+remaining.length>2000)throw new HttpError(400,'Izabrani razgovor je popunjen.');
+          const fileIds=[...new Set(remaining.flatMap(m=>[m.file_id,m.work_file]).filter(Boolean))];
+          const files=fileIds.length?(await client.query('SELECT * FROM user_files WHERE user_id=$1 AND id=ANY($2::uuid[])',[user.id,fileIds])).rows:[];
+          await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',[user.id]);
+          const usage=(await client.query('SELECT count(*) AS count,coalesce(sum(octet_length(content)),0) AS bytes FROM user_files WHERE user_id=$1',[user.id])).rows[0];
+          if(Number(usage.count)+files.length>100||Number(usage.bytes)+files.reduce((sum,f)=>sum+f.content.length,0)>100000000)throw new HttpError(413,'Nema dovoljno prostora za prenos priloga.');
+          const fileMap=new Map();
+          for(const f of files){const id=randomUUID();await client.query('INSERT INTO user_files(id,user_id,conversation_id,project_id,name,mime,kind,direction,content) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[id,user.id,targetId,target.project_id,f.name,f.mime,f.kind,f.direction,f.content]);fileMap.set(f.id,id);}
+          for(const m of remaining)await client.query('INSERT INTO messages(conversation_id,role,content,image,file_id,generation_ms,transfer_source_conversation_id,transfer_source_message_id,transferred_total_tokens,transferred_work_file_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',[targetId,m.role,m.content,m.image?JSON.stringify(m.image):null,fileMap.get(m.file_id)||null,m.generation_ms,sourceId,m.id,m.tokens,fileMap.get(m.work_file)||null]);
+          if(remaining.length)await client.query('UPDATE conversations SET updated_at=now() WHERE id=$1',[targetId]);
+          return {copied:remaining.length,targetId};
+        });
+        return sendJson(response,200,result);
       }
       const messageRoute=pathname.match(/^\/api\/conversations\/([^/]+)\/messages\/([0-9]+)$/);
       if(messageRoute && request.method==='DELETE') {
