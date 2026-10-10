@@ -656,6 +656,15 @@ select {
 
 }
 
+.messages.welcome-screen {
+    padding-top: 16px;
+    padding-bottom: 20px;
+}
+
+.messages.welcome-screen .welcome {
+    margin-top: 8px;
+}
+
 .welcome {
 
     width:min(800px,100%);

@@ -286,8 +286,11 @@ function addMessageElement(role, content, messageId, image, generationMs, totalT
         current.messages=current.messages.filter(message=>String(message.id)!==String(messageId));
         current.request=null;
         row.remove();
-        if(!current.messages.length)messagesElement.append(welcomeElement);
-        messagesElement.scrollTo({top:anchor?messagesElement.scrollTop+anchor.getBoundingClientRect().top-top:scroll,behavior:'instant'});
+        if(!current.messages.length){
+          messagesElement.classList.add('welcome-screen');
+          messagesElement.append(welcomeElement);
+          messagesElement.scrollTo({top:0,behavior:'instant'});
+        }else messagesElement.scrollTo({top:anchor?messagesElement.scrollTop+anchor.getBoundingClientRect().top-top:scroll,behavior:'instant'});
         notice('Poruka je obrisana.');
         await refreshList();
       });
@@ -478,13 +481,17 @@ function renderConversation({ preserveScroll = false } = {}) {
   const previousScroll = messagesElement.scrollTop;
   const previousLastId = messagesElement.lastElementChild?.dataset.messageId;
   messagesElement.replaceChildren();
+  const isWelcome = !current?.messages.length;
+  messagesElement.classList.toggle('welcome-screen', isWelcome);
   if (!current?.messages.length) messagesElement.append(welcomeElement);
   else current.messages.forEach(({ role, content, id, image, generationMs,totalTokens,workFileId }) => {
     const row = addMessageElement(role, content, id, image, generationMs,totalTokens,workFileId);
     row.dataset.messageId = id;
   });
   const last = messagesElement.lastElementChild;
-  if (preserveScroll && previousLastId === last?.dataset.messageId) {
+  if (isWelcome) {
+    messagesElement.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (preserveScroll && previousLastId === last?.dataset.messageId) {
     messagesElement.scrollTo({ top: previousScroll, behavior: 'instant' });
   } else if (last?.classList.contains('assistant')) {
     const entranceOffset = new DOMMatrixReadOnly(getComputedStyle(last).transform).m42;
@@ -510,7 +517,7 @@ async function startNewConversation() {
     renderConversation();
     notice('');
     sidebar.classList.remove('open');
-    input.focus();
+    input.focus({ preventScroll: true });
   });
 }
 async function sendMessage(value, retry = null) {
