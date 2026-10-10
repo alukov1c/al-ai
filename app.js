@@ -1320,3 +1320,14 @@ document.querySelectorAll('.category-toggle').forEach(button=>{
  });
  button.addEventListener('dblclick',event=>event.preventDefault());
 });
+async function beginTopicConversation(prompt){
+  if(isSending||!currentUser)return;
+  const version=epoch;let created=false;
+  await action(async()=>{
+    const result=await api('/api/conversations','POST',{model:modelSelect.value,projectId:activeProject});if(version!==epoch)return;
+    clearAttachment();workSelection.clear();$('#chatMode').value='chat';$('#workOptions').hidden=true;input.value='';input.placeholder='Pošaljite poruku AL AI.';input.style.height='auto';
+    current=result.conversation;activeId=current.id;await refreshList();if(version!==epoch)return;syncModelControls();renderConversation();created=true;
+  });
+  if(created&&version===epoch)await sendMessage(prompt);
+}
+document.querySelectorAll('.welcome-topic').forEach(button=>button.addEventListener('click',()=>beginTopicConversation(button.dataset.prompt)));
