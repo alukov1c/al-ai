@@ -1571,3 +1571,12 @@ textarea::placeholder {
 #history .history-item,#projectList .history-item,#pinnedList .history-item,.workspace-item,.history-title{ text-overflow:clip; }
 
 .welcome-topics{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin:16px 0 8px}.welcome-topic{position:relative;max-width:100%;padding:10px 15px;border:1px solid var(--blue);border-radius:1.2em;background:rgba(255,255,255,.76);backdrop-filter:blur(12px);box-shadow:0 0 14px rgba(37,99,235,.14);color:#1d4ed8;font:inherit;font-size:14px;line-height:1.5;cursor:pointer;transition:background .2s,box-shadow .2s}.welcome-topic:hover{background:#edf3ff;box-shadow:0 0 18px rgba(37,99,235,.2)}.welcome-topic:focus-visible{outline:2px solid #2563eb;outline-offset:3px}.welcome-topic:disabled{opacity:.5;cursor:default}@media(prefers-reduced-motion:reduce){.welcome-topic:before{animation:none}.welcome-topic{transition:none}}
+
+/* Mobilni raspored tema; originalni redosled na vecim ekranima. */
+.welcome-topic-row{display:contents}
+.welcome-topic{order:var(--topic-order)}
+@media screen and (max-width:700px){
+  .welcome-topics{flex-direction:column;align-items:center;width:calc(100% + 16px);margin-left:-8px;margin-right:-8px}
+  .welcome-topic-row{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;max-width:100%}
+  .welcome-topic-row .welcome-topic{order:0;flex:0 0 auto}
+}
