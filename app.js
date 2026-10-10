@@ -508,17 +508,21 @@ function renderConversation({ preserveScroll = false } = {}) {
   } else stopGenerationTimer();
 }
 async function startNewConversation() {
-  await action(async () => {
-    const result = await api('/api/conversations', 'POST', { model: modelSelect.value,projectId:activeProject });
-    current = result.conversation;
-    activeId = current.id;
-    await refreshList();
-    syncModelControls();
-    renderConversation();
-    notice('');
-    sidebar.classList.remove('open');
-    input.focus({ preventScroll: true });
-  });
+  if (isSending || !currentUser) return;
+  current = null;
+  activeId = null;
+  clearAttachment();
+  workSelection.clear();
+  input.value = '';
+  input.style.height = 'auto';
+  document.querySelectorAll('#workFiles input[type="checkbox"]').forEach(checkbox => { checkbox.checked = false; });
+  syncModelControls();
+  renderConversation();
+  renderHistory();
+  updateProjectOptions();
+  notice('');
+  sidebar.classList.remove('open');
+  input.focus({ preventScroll: true });
 }
 async function sendMessage(value, retry = null) {
   const mode=retry?.mode || $('#chatMode').value;
@@ -534,7 +538,7 @@ async function sendMessage(value, retry = null) {
   let attempt;
   try {
     if (!current) {
-      const result = await api('/api/conversations', 'POST', { model: modelSelect.value });
+      const result = await api('/api/conversations', 'POST', { model: modelSelect.value, projectId: activeProject });
       current = result.conversation;
       activeId = current.id;
     }
@@ -627,8 +631,7 @@ async function enterApp(result) {
     return;
   }
   await refreshList();
-  if (conversations.length) await selectConversation(conversations[0].id);
-  else renderConversation();
+  renderConversation();
 }
 $('#loginForm').addEventListener('submit', async (event) => {
   event.preventDefault();
