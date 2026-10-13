@@ -16,7 +16,7 @@
  async function fingerprint(payload){const prefix=new TextEncoder().encode(payload.name.trim()+'\0'),decoded=atob(payload.content),bytes=new Uint8Array(prefix.length+decoded.length);bytes.set(prefix);for(let n=0;n<decoded.length;n++)bytes[prefix.length+n]=decoded.charCodeAt(n);return [...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(n=>n.toString(16).padStart(2,'0')).join('');}
  window.importPdfFile=async(payload,options={})=>{
   const version=epoch,hash=await fingerprint(payload);valid(version);let job;
-  try{job=options.upload?await options.upload():await api('/api/pdf-imports','POST',payload);}catch(error){
+  try{job=options.upload?await options.upload():window.localFolderAccess?.uploadPdf?await window.localFolderAccess.uploadPdf({epoch:version,user:currentUser.id,project:payload.projectId},payload,f=>options.onStage?.('Slanje PDF-a: '+Math.floor(f*100)+'%')):await api('/api/pdf-imports','POST',payload);}catch(error){
    if(!error.retryable)throw error;
    for(let n=0;n<5;n++){valid(version);options.onStage?.('Provera da li je hosting sačuvao PDF…');try{const found=await api('/api/pdf-imports/find','POST',{projectId:payload.projectId||null,fingerprint:hash});if(found.job){job=found.job;break;}}catch(check){if(!check.retryable)throw check;}if(n<4)await pause();}
    if(!job)throw new Error(error.message+' Slanje nije potvrđeno. Proverite Biblioteku pre ponovnog uvoza.');

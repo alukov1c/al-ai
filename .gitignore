@@ -104,3 +104,7 @@ RENDER-POKRETANJE.md
 !test/local-pdf.test.js
 
 !test/pdf-recovery-tabs.test.js
+
+!test/project-conversation-ui.test.js
+
+!test/pdf-binary-upload.test.js

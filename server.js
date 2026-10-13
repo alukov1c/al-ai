@@ -66,6 +66,12 @@ function sendJson(response, status, body) {
   response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
   response.end(JSON.stringify(body));
 }
+function readPdfBytes(request){
+ return new Promise((resolve,reject)=>{const max=30000000,chunks=[];let size=0,tooLarge=Number(request.headers['content-length'])>max;
+  request.on('data',chunk=>{size+=chunk.length;if(size>max){tooLarge=true;chunks.length=0;}if(!tooLarge)chunks.push(chunk);});request.once('error',reject);request.once('aborted',()=>reject(new HttpError(400,'Slanje PDF-a je prekinuto.')));request.once('end',()=>tooLarge?reject(new HttpError(413,'PDF može imati najviše 30 MB.')):resolve(Buffer.concat(chunks,size)));
+ });
+}
+
 async function readJson(request, maxBytes=5_000_000) {
   let size = 0;
   const chunks = [];
@@ -276,12 +282,12 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
         return response.end(contents);
       }
       if (pathname === '/api/config' && request.method === 'GET') return sendJson(response, 200, { googleClientId });
-      const write = request.method !== 'GET';
+      const write = request.method !== 'GET',binaryPdf=pathname==='/api/pdf-imports'&&request.method==='POST'&&(request.headers['content-type']||'').split(';')[0].trim()==='application/pdf';let pdfBuffer=null,uploadUser=null;
       if (write) {
         if (request.headers.origin !== appOrigin) throw new HttpError(403, 'Zahtev mora poticati iz ove aplikacije.');
-        if (!(request.headers['content-type'] || '').startsWith('application/json')) throw new HttpError(415, 'Očekuje se JSON zahtev.');
+        if (!binaryPdf&&!(request.headers['content-type'] || '').startsWith('application/json')) throw new HttpError(415, 'Očekuje se JSON zahtev.');
       }
-      const data = write ? await readJson(request,['/api/attachments/extract','/api/pdf-imports'].includes(pathname)?41_000_000:5_000_000) : {};
+      let data={};if(binaryPdf){uploadUser=await authenticate(request);if(request.headers['x-csrf-token']!==uploadUser.csrf_token)throw new HttpError(403,'Osvežite stranicu i pokušajte ponovo.');try{data={name:decodeURIComponent(request.headers['x-pdf-name']||''),projectId:request.headers['x-project-id']||null};}catch{throw new HttpError(400,'Neispravan naziv PDF-a.');}pdfBuffer=await readPdfBytes(request);}else data=write?await readJson(request,['/api/attachments/extract','/api/pdf-imports'].includes(pathname)?41_000_000:5_000_000):{};
       if (pathname.startsWith('/api/google/')) return sendJson(response, 200, await googleAuth(pathname, request, response, data));
       if (pathname === '/api/login' && request.method === 'POST') {
         const name = username(data.username);
@@ -307,7 +313,7 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
         return sendJson(response, 200, { user: publicUser(row), csrfToken });
       }
 
-      const user = await authenticate(request);
+      const user = uploadUser||await authenticate(request);
       if (write && request.headers['x-csrf-token'] !== user.csrf_token) throw new HttpError(403, 'Osvežite stranicu i pokušajte ponovo.');
       if (pathname === '/api/me' && request.method === 'GET') return sendJson(response, 200, { user: publicUser(user), csrfToken: user.csrf_token });
       if (pathname === '/api/logout' && request.method === 'POST') {
@@ -329,7 +335,7 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
         return sendJson(response, 200, { ok: true });
       }
       if (user.must_change_password) throw new HttpError(403, 'Pre nastavka promenite početnu lozinku.');
-      if(await pdfImportsApi({pool,user,data,pathname,method:request.method,queue:pdfQueue,send:body=>sendJson(response,200,body)}))return;
+      if(await pdfImportsApi({pool,user,data,pdfBuffer,pathname,method:request.method,queue:pdfQueue,send:body=>sendJson(response,200,body)}))return;
       const bookIndexRoute=pathname.match(/^\/api\/books\/([0-9a-f-]+)\/index$/i);
       if(bookIndexRoute&&request.method==='POST'){
         await pluginAllowed(pool,user.id,'pdf');await limitLogin(pool,'attachment:'+user.id,20);

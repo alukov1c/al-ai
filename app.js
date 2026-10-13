@@ -88,7 +88,7 @@ function generationDuration(milliseconds) {
 }
 function setBusy(busy) {
   isSending = busy;
-  document.querySelectorAll('[data-busy], .suggestion').forEach((element) => { element.disabled = busy || element.id==='conversationProject'&&(!current||current.archived||current.projectArchived) || (element.dataset.pluginFormat && workspace.plugins[element.dataset.pluginFormat]===false); });
+  document.querySelectorAll('[data-busy], .suggestion').forEach((element) => { element.disabled = busy || element.id==='conversationProject'&&(current?.archived||current?.projectArchived) || (element.dataset.pluginFormat && workspace.plugins[element.dataset.pluginFormat]===false); });
 }
 function signedOut(message = '') {
   epoch++;
@@ -527,6 +527,10 @@ function renderConversation({ preserveScroll = false } = {}) {
 }
 async function startNewConversation() {
   if (isSending || !currentUser) return;
+  resetConversationDraft();
+}
+function resetConversationDraft(){
+  clearTimeout(pollTimer);stopGenerationTimer();
   current = null;
   activeId = null;
   clearAttachment();
@@ -968,12 +972,13 @@ $('#documentSettingsForm').addEventListener('submit',event=>{
 });
 $('#exportConversation').addEventListener('click',()=>{if(!current?.messages.some(m=>m.role==='assistant')){$('#documentSettingsStatus').textContent='Nema odgovora za izvoz.';return;}$('#settingsDialog').close();downloadDocument(documentPreferences().format,current.id);});
 
+const fileLibraryLoads={};
 async function refreshFileLibrary(category) {
   const library=category==='library',images=category==='images', status=$(library?'#libraryStatus':images?'#imagesStatus':'#filesStatus'), target=$(library?'#libraryCards':images?'#imageGallery':'#documentLibrary');
-  const version=epoch;
+  const version=epoch,load=(fileLibraryLoads[category]||0)+1;fileLibraryLoads[category]=load;
   status.textContent='Učitavanje…';target.replaceChildren();
   try {
-    const result=await api('/api/files');if(version!==epoch)return;
+    const result=await api('/api/files');if(version!==epoch||load!==fileLibraryLoads[category])return;
     const files=result.files.filter(f=>library?libraryMatches(f):images?f.kind==='image':f.kind==='document' && ($('#filesFilter').value==='all' || f.direction===$('#filesFilter').value));
     status.textContent=files.length ? files.length+' stavki' : 'Nema sačuvanih '+(images?'slika.':'datoteka.');
     for(const file of files) {
@@ -1003,7 +1008,7 @@ async function refreshFileLibrary(category) {
         await action(async()=>{try{await api('/api/files/'+file.id,'DELETE',{});if(attachment?.fileId===file.id)clearAttachment();await refreshFileLibrary(category);if(current)await refreshCurrent();}catch(error){status.textContent=error.message;}});
       });controls.append(remove);card.append(controls);target.append(card);
     }
-  }catch(error){status.textContent=error.message;}
+  }catch(error){if(version===epoch&&load===fileLibraryLoads[category])status.textContent=error.message;}
 }
 $('#imagesRefresh').addEventListener('click',()=>refreshFileLibrary('images'));
 $('#filesRefresh').addEventListener('click',()=>refreshFileLibrary('files'));
@@ -1237,8 +1242,11 @@ function fillProjectSelect(select,emptyLabel,emptyValue=''){
  const projects=['libraryProject','usageProject','conversationProject'].includes(select.id)||select.dataset.fileProject?(workspace.allProjects||workspace.projects):workspace.projects;for(const project of projects){const option=document.createElement('option');option.value=project.id;option.textContent=project.name+(project.archived?' (arhivirano)':'');option.disabled=!!project.archived&&!['libraryProject','usageProject'].includes(select.id);select.append(option);}select.value=previous;if(select.selectedIndex<0)select.value=emptyValue;
 }
 function updateProjectOptions(){
- fillProjectSelect($('#conversationProject'),'Bez projekta');$('#conversationProject').value=current?.projectId||'';$('#conversationProject').disabled=!current||isSending||current.archived||current.projectArchived;
- const project=workspace.projects.find(p=>p.id===activeProject);$('#projectScope').textContent=project?'Projekat: '+project.name:'';
+ const select=$('#conversationProject'),selected=current?current.projectId:activeProject;select.replaceChildren(new Option('Bez projekta',''));
+ for(const project of workspace.projects)select.append(new Option(project.name,project.id));
+ const archived=(workspace.allProjects||[]).find(p=>p.id===selected&&p.archived);if(archived){const option=new Option(archived.name+' (arhivirano)',archived.id);option.disabled=true;select.append(option);}
+ const create=new Option('Kreiraj novi projekat','__create_project__');create.style.fontWeight='700';select.append(create);select.value=selected||'';select.disabled=isSending||!!(current?.archived||current?.projectArchived);
+ const project=(workspace.allProjects||workspace.projects).find(p=>p.id===selected);$('#projectScope').textContent=project?'Projekat: '+project.name:'Projekat nije izabran';
  for(const [id,label,value]of [['libraryProject','Svi projekti','all'],['usageProject','Svi projekti','']]){const previous=$('#'+id).value;fillProjectSelect($('#'+id),label,value);if(id==='libraryProject'){const option=document.createElement('option');option.value='none';option.textContent='Bez projekta';$('#'+id).append(option);if(previous==='none')$('#'+id).value='none';}}
 }
 function workspaceButton(label,callback,className=''){
@@ -1255,20 +1263,24 @@ function renderWorkspace(){
  workspace.pins.forEach((item,index)=>{
   const row=document.createElement('div');row.className='workspace-row';row.append(workspaceButton(item.name,async()=>{if(item.kind==='project')await selectProject(item.id);else {activeProject=item.project_id||null;await refreshList();await selectConversation(item.id);}},'workspace-item'));
   makeWorkspaceDrag(row,{kind:item.kind,id:item.id});makeWorkspaceDrop(row,async source=>{if(source.id===item.id&&source.kind===item.kind)return;const items=[...workspace.pins],from=items.findIndex(pin=>pin.id===source.id&&pin.kind===source.kind);if(from<0){await pinWorkspaceItem(source);return;}const moved=items.splice(from,1)[0];items.splice(items.findIndex(pin=>pin.id===item.id&&pin.kind===item.kind),0,moved);await api('/api/pins/order','PUT',{items:items.map(({id,kind})=>({id,kind}))});await refreshWorkspace();});
-  row.append(itemMenuButton({kind:item.kind,id:item.id,name:item.name}));$('#pinnedList').append(row);
+  row.append(itemMenuButton({kind:item.kind,id:item.id,name:item.name,fromPinned:true,projectId:item.project_id||null}));$('#pinnedList').append(row);
  });
  applySidebarSections();
 }
 async function selectProject(id){activeProject=id;current=null;activeId=null;workSelection.clear();clearTimeout(pollTimer);stopGenerationTimer();await refreshList();renderConversation();if($('#chatMode').value==='work')await refreshWorkFiles();}
-function openProject(project=null){editingProject=project?.id||null;$('#projectName').value=project?.name||'';$('#projectInstructions').value=project?.instructions||'';$('#projectPinned').checked=!!project?.pinned;$('#projectDelete').hidden=!project;$('#projectStatus').textContent='';$('#projectDialog').showModal();}
+let projectCreationConversationId=null;
+async function startProjectConversation(projectId){if(projectId&&!workspace.projects.some(p=>p.id===projectId))throw new Error('Izaberite aktivan projekat.');activeProject=projectId||null;resetConversationDraft();await refreshList();if($('#chatMode').value==='work')await refreshWorkFiles();}
+function openProject(project=null){projectCreationConversationId=null;$('#projectNewConversation').hidden=!project||!!project.archived;editingProject=project?.id||null;$('#projectName').value=project?.name||'';$('#projectInstructions').value=project?.instructions||'';$('#projectPinned').checked=!!project?.pinned;$('#projectDelete').hidden=!project;$('#projectStatus').textContent='';$('#projectDialog').showModal();}
+$('#projectNewConversation').addEventListener('click',()=>{const id=editingProject;if(!id)return;$('#projectDialog').close();$('#settingsDialog').close();action(()=>startProjectConversation(id));});
+$('#projectDialog').addEventListener('close',()=>{projectCreationConversationId=null;updateProjectOptions();});
 $('#projectNew').addEventListener('click',()=>openProject());$('#projectClose').addEventListener('click',()=>$('#projectDialog').close());
 $('#projectAll').addEventListener('click',()=>action(()=>selectProject(null)));
 $('#projectForm').addEventListener('submit',event=>{event.preventDefault();action(async()=>{try{
- let id=editingProject;if(!id){id=(await api('/api/projects','POST',{name:$('#projectName').value})).id;editingProject=id;}
- await api('/api/projects/'+id,'PATCH',{name:$('#projectName').value,instructions:$('#projectInstructions').value,pinned:$('#projectPinned').checked});$('#projectDialog').close();await selectProject(id);if($('#settingsDialog').open&&!$('#settings-archived').hidden)await refreshArchived();
+ const targetConversation=projectCreationConversationId;let id=editingProject;if(!id){id=(await api('/api/projects','POST',{name:$('#projectName').value})).id;editingProject=id;}
+ await api('/api/projects/'+id,'PATCH',{name:$('#projectName').value,instructions:$('#projectInstructions').value,pinned:$('#projectPinned').checked});$('#projectDialog').close();if(targetConversation){await api('/api/conversations/'+targetConversation,'PATCH',{projectId:id});activeProject=id;await refreshList();await selectConversation(targetConversation);}else await selectProject(id);if($('#settingsDialog').open&&!$('#settings-archived').hidden)await refreshArchived();
  }catch(error){$('#projectStatus').textContent=error.message;}});});
 $('#projectDelete').addEventListener('click',()=>{if(!window.confirm('Obrisati projekat? Njegovi razgovori i datoteke ostaju na nalogu.'))return;action(async()=>{try{await api('/api/projects/'+editingProject,'DELETE',{});$('#projectDialog').close();await selectProject(null);}catch(error){$('#projectStatus').textContent=error.message;}});});
-$('#conversationProject').addEventListener('change',()=>action(async()=>{if(!current)return;const id=current.id;await api('/api/conversations/'+id,'PATCH',{projectId:$('#conversationProject').value||null});activeProject=$('#conversationProject').value||null;await refreshList();await selectConversation(id);}));
+$('#conversationProject').addEventListener('change',()=>{const projectId=$('#conversationProject').value;if(projectId==='__create_project__'){const target=current?.id||null;updateProjectOptions();openProject();projectCreationConversationId=target;return;}action(async()=>{if(!current){await selectProject(projectId||null);return;}const id=current.id;await api('/api/conversations/'+id,'PATCH',{projectId:projectId||null});activeProject=projectId||null;await refreshList();await selectConversation(id);});});
 $('#workspaceLibrary').addEventListener('click',()=>{settingsSection('library');$('#settingsDialog').showModal();});
 function libraryMatches(file){const query=$('#librarySearch').value.trim().toLocaleLowerCase('sr'),project=$('#libraryProject').value;return (!query||(file.name+' '+(file.title||'')).toLocaleLowerCase('sr').includes(query))&&($('#libraryType').value==='all'||file.kind===$('#libraryType').value)&&($('#libraryDirection').value==='all'||file.direction===$('#libraryDirection').value)&&(project==='all'||project==='none'&&!file.project_id||file.project_id===project);}
 for(const id of ['libraryType','libraryDirection','libraryProject'])$('#'+id).addEventListener('change',()=>refreshFileLibrary('library'));
@@ -1303,13 +1315,14 @@ const pinnedHeading=$('#pinnedList').previousElementSibling;makeWorkspaceDrop(pi
 function renderLibraryDropTargets(){const target=$('#libraryDropTargets');target.replaceChildren();for(const project of [{id:null,name:'Bez projekta'},...workspace.projects]){const button=document.createElement('button');button.type='button';button.textContent=project.name;button.title=project.name;button.dataset.projectDrop=project.id||'none';button.addEventListener('click',()=>{$('#libraryProject').value=project.id||'none';refreshFileLibrary('library');refreshLibraryConversations();});makeWorkspaceDrop(button,item=>moveToProject(item,project.id));target.append(button);}refreshLibraryConversations();}
 
 let menuTrigger=null,folderItem=null,savedLoad=0,savedItem=null;
-const itemMenuIcons={rename:'<path d="m4 16-1 5 5-1L21 7l-4-4zM15 5l4 4"/>',pin:'<path d="M9 3h6l-1 6 4 4H6l4-4zM12 13v8"/>',folder:'<path d="M3 6h7l2 3h9v12H3z"/>',memory:'<path d="M5 3h14v18H5zM8 7h8m-8 4h8m-8 4h5"/>',archive:'<path d="M3 3h18v5H3zm1 5h16v13H4zm6 4h4"/>',remove:'<path d="M3 6h18M8 6V3h8v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/>',up:'<path d="m5 13 7-7 7 7M12 6v15"/>',down:'<path d="m5 11 7 7 7-7M12 3v15"/>'};
+const itemMenuIcons={newConversation:'<path d="M4 4h16v12H8l-4 4zM8 10h8m-4-4v8"/>',rename:'<path d="m4 16-1 5 5-1L21 7l-4-4zM15 5l4 4"/>',pin:'<path d="M9 3h6l-1 6 4 4H6l4-4zM12 13v8"/>',folder:'<path d="M3 6h7l2 3h9v12H3z"/>',memory:'<path d="M5 3h14v18H5zM8 7h8m-8 4h8m-8 4h5"/>',archive:'<path d="M3 3h18v5H3zm1 5h16v13H4zm6 4h4"/>',remove:'<path d="M3 6h18M8 6V3h8v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/>',up:'<path d="m5 13 7-7 7 7M12 6v15"/>',down:'<path d="m5 11 7 7 7-7M12 3v15"/>'};
 function itemMenuButton(item){const button=document.createElement('button');button.type='button';button.className='conversation-action item-more';button.dataset.busy='';button.disabled=isSending;button.textContent='⋯';button.setAttribute('aria-label','Opcije: '+item.name);button.setAttribute('aria-haspopup','menu');button.setAttribute('aria-expanded','false');button.addEventListener('click',event=>{event.stopPropagation();if(!$('#itemMenu').hidden&&menuTrigger===button){closeItemMenu();return;}openItemMenu(item,button);});return button;}
 function closeItemMenu(){const menu=$('#itemMenu');if(menu)menu.hidden=true;if(menuTrigger)menuTrigger.setAttribute('aria-expanded','false');}
 function openItemMenu(item,button){
  closeItemMenu();menuTrigger=button;const menu=$('#itemMenu');(button.closest('dialog[open]')||document.body).append(menu);menu.replaceChildren();button.setAttribute('aria-expanded','true');
  const isPinned=workspace.pins.some(pin=>pin.id===item.id&&pin.kind===item.kind),archived=item.archived||item.parentArchived;
  function option(key,label,callback,disabled=false){const actionButton=document.createElement('button');actionButton.type='button';actionButton.setAttribute('role','menuitem');actionButton.dataset.action=key;actionButton.disabled=disabled;const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');svg.innerHTML=itemMenuIcons[key]||itemMenuIcons.folder;const text=document.createElement('span');text.textContent=label;actionButton.append(svg,text);actionButton.addEventListener('click',()=>{closeItemMenu();action(callback);});menu.append(actionButton);}
+ if(!archived&&(item.kind==='project'||item.fromPinned))option('newConversation','Novi razgovor',()=>startProjectConversation(item.kind==='project'?item.id:item.projectId));
  const endpoint=item.kind==='project'?'/api/projects/'+item.id:'/api/conversations/'+item.id;
  option('rename','Promeni naziv',async()=>{const name=window.prompt('Uneti novi naziv:',item.name)?.trim();if(!name)return;await api(endpoint,'PATCH',item.kind==='project'?{name}:{title:name});await refreshList();if(current?.id===item.id)await refreshCurrent();if($('#settings-archived')&&!$('#settings-archived').hidden)await refreshArchived();});
  if(!archived)option('pin',isPinned?'Otkači':'Zakači',async()=>{await api(endpoint,'PATCH',{pinned:!isPinned});await refreshList();});

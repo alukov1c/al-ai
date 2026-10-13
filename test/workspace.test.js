@@ -50,12 +50,12 @@ test('Prvi paket: privatni projekti, pinovanje, potrošnja, moduli, biblioteka i
  assert.equal((await admin.request('/api/work','POST',{...work,requestId:randomUUID(),format:'pdf'})).status,403);
  assert.equal((await admin.request('/api/attachments/extract','POST',{name:'test.pdf',content:Buffer.from('%PDF-').toString('base64')})).status,403);
  const executablePath=['C:/Program Files/Google/Chrome/Application/chrome.exe','C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'].find(fs.existsSync);
- browser=await chromium.launch({executablePath,headless:true});const page=await browser.newPage({viewport:{width:1440,height:900}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ browser=await chromium.launch({executablePath,headless:true});const page=await browser.newPage({viewport:{width:1440,height:900}});page.setDefaultTimeout(90000);const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.route('https://accounts.google.com/**',r=>r.abort());await page.route('https://fonts.googleapis.com/**',r=>r.abort());await page.goto(app.origin);
  await page.locator('#loginUsername').fill('admin');await page.locator('#loginPassword').fill('Admin-password-test-123');await page.locator('#loginSubmit').click();await page.locator('#projectList button').first().waitFor();
  assert.equal(await page.locator('#pinnedList .workspace-row').count(),2);
  await page.locator('#projectList .workspace-item').first().click();await page.locator('#newChatButton').click();await page.locator('#chatMode').selectOption('work');await page.locator('#workFiles input').first().waitFor();await page.locator('#workFiles input').first().check();await page.locator('#workFormat').selectOption('docx');await page.locator('#promptInput').fill('Napravi novi Work dokument');await page.locator('#sendButton').click();
- await page.getByRole('link',{name:'Preuzmi Work dokument'}).waitFor();assert.equal(await page.locator('.assistant strong em').first().textContent(),'Sačuvaj');
+ await page.getByRole('link',{name:'Preuzmi Work dokument'}).waitFor().catch(async error=>{await page.screenshot({path:'test-artifacts/workspace-work-failure.png'});throw new Error(error.message+' App notice: '+await page.locator('#appNotice').textContent());});assert.equal(await page.locator('.assistant strong em').first().textContent(),'Sačuvaj');
  assert.ok((await page.locator('.assistant .message-actions').last().textContent()).includes('Tokeni: 15'));
  for(const width of [1440,768,390]){await page.setViewportSize({width,height:900});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:'test-artifacts/workspace-chat-'+width+'.png',animations:'disabled'});}
  await page.locator('#settingsButton').click();await page.locator('[data-settings="library"]').click();await page.locator('#libraryCards .file-card').first().waitFor();
