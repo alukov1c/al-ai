@@ -51,3 +51,9 @@
 
 .al-explorer .folder-toolbar button:hover:not(:disabled),.al-explorer .explorer-heading button:hover:not(:disabled){background:#edf3ff;border-color:#cbd7eb}
 .al-explorer .folder-toolbar button:focus-visible,.al-explorer .explorer-heading button:focus-visible{outline:2px solid rgba(37,99,235,.4);outline-offset:2px}
+
+/* Kompaktna traka AL AI eksplorera; zadržava zajednički izgled dugmadi. */
+#alExplorer .folder-toolbar{display:grid;grid-template-columns:1.15fr .8fr 1.2fr;gap:6px;flex-wrap:nowrap}
+#alExplorer .folder-toolbar button{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-width:0;white-space:nowrap;padding:7px 6px;font-size:clamp(10px,3.1vw,12px)}
+#alExplorer .folder-toolbar svg{width:14px;height:14px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+#explorerProject{appearance:none;padding-right:36px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23566580' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}

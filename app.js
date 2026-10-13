@@ -29,7 +29,7 @@ let googleClientId = '';
 let googleReady;
 let googleVersion = 0;
 let attachment = null;
-let sidebarSections={};
+let sidebarSections={},libraryConversationsLoad=0;
 let workspace={projects:[],pins:[],plugins:{pdf:true,docx:true,xlsx:true,pptx:true}},activeProject=null,editingProject=null,workSelection=new Set(),workspaceLoad=0;
 function attachmentSizeLimit(name){return /\.pdf$/i.test(name)?30000000:3000000;}
 function validateAttachmentSize(file){const max=attachmentSizeLimit(file.name);if(file.size>max)throw new Error('Najviše '+(max/1000000)+' MB po '+(/\.pdf$/i.test(file.name)?'PDF':'datoteci')+'.');}
@@ -112,7 +112,8 @@ function signedOut(message = '') {
   $('#documentLibrary').replaceChildren();
   $('#memoryForm').reset();
   $('#memoryList').replaceChildren();
-  $('#profileMemoryList').replaceChildren();$('#savedList').replaceChildren();$('#savedMessages').replaceChildren();$('#savedTitle').textContent='Sačuvana konverzacija';$('#itemMenu').replaceChildren();savedItem=null;folderItem=null;$('#projectScope').textContent='';for(const id of ['usageTotals','usageDays','usageMonths','usageCalls','archivedList','libraryDropTargets','workFiles'])$('#'+id).replaceChildren();closeItemMenu();
+  $('#profileMemoryList').replaceChildren();$('#savedList').replaceChildren();$('#savedMessages').replaceChildren();$('#savedTitle').textContent='Sačuvana konverzacija';$('#itemMenu').replaceChildren();savedItem=null;folderItem=null;$('#projectScope').textContent='';for(const id of ['usageTotals','usageDays','usageMonths','usageCalls','archivedList','libraryDropTargets','libraryConversationsList','workFiles'])$('#'+id).replaceChildren();closeItemMenu();
+  libraryConversationsLoad++;$('#libraryConversations').hidden=true;
   profileDocumentEditing=false;profileDocumentSaving=false;profileDocumentRevision=null;profileDocumentBackup='';$('#profileDocumentStatus').textContent='';
   $('#profileMemoryDocument').value='';$('#profileMemoryDocument').readOnly=true;
   profileImage=null;$('#profileImage').removeAttribute('src');$('#profileImage').hidden=true;$('#profileInitials').textContent='';$('#profileImageInput').value='';$('#profileImageStatus').textContent='';
@@ -1000,10 +1001,10 @@ $('#filesRefresh').addEventListener('click',()=>refreshFileLibrary('files'));
 $('#filesFilter').addEventListener('change',()=>refreshFileLibrary('files'));
 
 let previewVersion=0, previewFile=null, previewPage=1;
-function clearFilePreview(){previewVersion++;previewFile=null;$('#filePreviewImage').removeAttribute('src');$('#filePreviewImage').hidden=true;$('#filePreviewText').textContent='';$('#filePreviewText').hidden=true;$('#filePreviewPages').hidden=true;}
+function clearFilePreview(){previewVersion++;previewFile=null;$('#filePreviewDownload').removeAttribute('href');$('#filePreviewImage').removeAttribute('src');$('#filePreviewImage').hidden=true;$('#filePreviewText').textContent='';$('#filePreviewText').hidden=true;$('#filePreviewPages').hidden=true;}
 async function openFilePreview(file,page=1){
  const version=++previewVersion, session=epoch;previewFile=file;previewPage=page;
- $('#filePreviewTitle').textContent=file.name;$('#filePreviewStatus').textContent='Učitavanje pregleda…';
+ $('#filePreviewTitle').textContent=file.name;$('#filePreviewDownload').href='/api/files/'+file.id;$('#filePreviewDownload').download=file.name;$('#filePreviewStatus').textContent='Učitavanje pregleda…';
  $('#filePreviewImage').hidden=true;$('#filePreviewImage').removeAttribute('src');$('#filePreviewText').hidden=true;$('#filePreviewText').textContent='';$('#filePreviewPages').hidden=true;
  const dialog=$('#filePreviewDialog');if(!dialog.open)dialog.showModal();
  try{
@@ -1290,7 +1291,7 @@ async function moveToProject(item,projectId){if(item.kind==='conversation'){awai
 async function pinWorkspaceItem(item){if(!['conversation','project'].includes(item.kind))return;await api(item.kind==='project'?'/api/projects/'+item.id:'/api/conversations/'+item.id,'PATCH',{pinned:true});await refreshList();notice('Stavka je zakačena.');}
 makeWorkspaceDrop($('#projectAll'),item=>moveToProject(item,null));makeWorkspaceDrop($('#pinnedList'),pinWorkspaceItem);
 const pinnedHeading=$('#pinnedList').previousElementSibling;makeWorkspaceDrop(pinnedHeading,pinWorkspaceItem);
-function renderLibraryDropTargets(){const target=$('#libraryDropTargets');target.replaceChildren();for(const project of [{id:null,name:'Bez projekta'},...workspace.projects]){const button=document.createElement('button');button.type='button';button.textContent=project.name;button.title=project.name;button.dataset.projectDrop=project.id||'none';button.addEventListener('click',()=>{$('#libraryProject').value=project.id||'none';refreshFileLibrary('library');});makeWorkspaceDrop(button,item=>moveToProject(item,project.id));target.append(button);}}
+function renderLibraryDropTargets(){const target=$('#libraryDropTargets');target.replaceChildren();for(const project of [{id:null,name:'Bez projekta'},...workspace.projects]){const button=document.createElement('button');button.type='button';button.textContent=project.name;button.title=project.name;button.dataset.projectDrop=project.id||'none';button.addEventListener('click',()=>{$('#libraryProject').value=project.id||'none';refreshFileLibrary('library');refreshLibraryConversations();});makeWorkspaceDrop(button,item=>moveToProject(item,project.id));target.append(button);}refreshLibraryConversations();}
 
 let menuTrigger=null,folderItem=null,savedLoad=0,savedItem=null;
 const itemMenuIcons={rename:'<path d="m4 16-1 5 5-1L21 7l-4-4zM15 5l4 4"/>',pin:'<path d="M9 3h6l-1 6 4 4H6l4-4zM12 13v8"/>',folder:'<path d="M3 6h7l2 3h9v12H3z"/>',memory:'<path d="M5 3h14v18H5zM8 7h8m-8 4h8m-8 4h5"/>',archive:'<path d="M3 3h18v5H3zm1 5h16v13H4zm6 4h4"/>',remove:'<path d="M3 6h18M8 6V3h8v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/>',up:'<path d="m5 13 7-7 7 7M12 6v15"/>',down:'<path d="m5 11 7 7 7-7M12 3v15"/>'};
@@ -1417,3 +1418,12 @@ async function transferLatestExchange(targetId,title){
     notice(result.copied?'Poruka i odgovor su preneti u: '+title+'.':'Ova poruka i odgovor su već preneti u: '+title+'.');
   });
 }
+
+async function refreshLibraryConversations(){
+ const load=++libraryConversationsLoad,session=epoch,project=$('#libraryProject').value,target=$('#libraryConversationsList');target.replaceChildren();$('#libraryConversations').hidden=project==='all';for(const button of $('#libraryDropTargets').children)button.setAttribute('aria-pressed',String(button.dataset.projectDrop===project));if(project==='all')return;
+ const label=project==='none'?'Bez projekta':(workspace.allProjects||workspace.projects).find(p=>p.id===project)?.name||'Izabrani projekat';$('#libraryConversationsTitle').textContent='Razgovori: '+label;$('#libraryConversationsStatus').textContent='Učitavanje razgovora…';
+ try{const items=new Map();let offset=0,more=true;while(more){const result=await api('/api/conversations?offset='+offset+(project==='none'?'':'&projectId='+encodeURIComponent(project)));if(load!==libraryConversationsLoad||session!==epoch)return;for(const conversation of result.conversations)if(project!=='none'||!conversation.project_id)items.set(conversation.id,conversation);more=result.hasMore;offset+=result.conversations.length;if(more&&!result.conversations.length)break;}
+ for(const conversation of items.values()){const button=document.createElement('button');button.type='button';button.className='library-conversation-item';button.textContent=conversation.title;button.title=conversation.title;button.dataset.conversationId=conversation.id;button.dataset.busy='';button.disabled=isSending;button.addEventListener('click',()=>action(async()=>{if(session!==epoch)return;$('#settingsDialog').close();activeProject=conversation.project_id||null;await refreshList();await selectConversation(conversation.id);}));target.append(button);}$('#libraryConversationsStatus').textContent=items.size?'Razgovora: '+items.size+'.':'Nema dostupnih razgovora u ovom projektu.';
+ }catch(e){if(load===libraryConversationsLoad&&session===epoch)$('#libraryConversationsStatus').textContent=e.message;}
+}
+$('#libraryProject').addEventListener('change',refreshLibraryConversations);$('#libraryRefresh').addEventListener('click',refreshLibraryConversations);

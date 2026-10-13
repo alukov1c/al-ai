@@ -51,6 +51,9 @@ const publicFiles = new Map([
   ['/local-folder.js', ['local-folder.js', 'text/javascript; charset=utf-8']],
   ['/AL-AI.svg', ['AL-AI.svg', 'image/svg+xml']]
 ]);
+const pdfjsRoot=path.dirname(require.resolve('pdfjs-dist/package.json'));
+for(const name of ['pdf.mjs','pdf.worker.mjs'])publicFiles.set('/vendor/pdfjs/'+name,[path.join(pdfjsRoot,'build',name),'text/javascript; charset=utf-8']);
+for(const dir of ['cmaps','standard_fonts','wasm'])for(const name of fs.readdirSync(path.join(pdfjsRoot,dir)).filter(n=>/\.(bcmap|ttf|pfb|wasm)$/.test(n)))publicFiles.set('/vendor/pdfjs/'+dir+'/'+name,[path.join(pdfjsRoot,dir,name),name.endsWith('.wasm')?'application/wasm':'application/octet-stream']);
 const katexDist = path.join(path.dirname(require.resolve('katex/package.json')), 'dist');
 for (const name of ['katex.min.js','katex.min.css','contrib/auto-render.min.js']) publicFiles.set('/vendor/katex/'+name,[path.join(katexDist,name),name.endsWith('.css')?'text/css':'text/javascript']);
 for (const name of fs.readdirSync(path.join(katexDist,'fonts')).filter(n=>/\.(woff2?|ttf)$/.test(n))) publicFiles.set('/vendor/katex/fonts/'+name,[path.join(katexDist,'fonts',name),'font/'+(name.endsWith('.woff2')?'woff2':name.endsWith('.woff')?'woff':'ttf')]);
@@ -246,7 +249,7 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
     response.setHeader('Referrer-Policy', 'same-origin');
     response.setHeader('X-Frame-Options', 'DENY');
     response.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
-    response.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' https://fonts.googleapis.com https://accounts.google.com/gsi/style; style-src-attr 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; frame-src https://accounts.google.com/gsi/; connect-src 'self' https://accounts.google.com/gsi/; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+    response.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' https://fonts.googleapis.com https://accounts.google.com/gsi/style; style-src-attr 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; frame-src https://accounts.google.com/gsi/; worker-src 'self' blob:; connect-src 'self' https://accounts.google.com/gsi/; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
     try {
       const url = new URL(request.url, 'http://localhost');
       const pathname = url.pathname;

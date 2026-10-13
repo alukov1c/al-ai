@@ -22,7 +22,8 @@
     "test:second-package-ui": "node test/second-package-ui.js",
     "test:pdf-limit": "node --test test/pdf-size-limit.test.js",
     "test:books": "node --test test/books.test.js",
-    "test:import-explorer": "node --test test/import-explorer.test.js"
+    "test:import-explorer": "node --test test/import-explorer.test.js",
+    "test:explorer-preview": "node --test test/explorer-preview-library.test.js"
   },
   "engines": {
     "node": ">=20.16.0 <21 || >=22.3.0"

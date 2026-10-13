@@ -89,3 +89,5 @@ RENDER-POKRETANJE.md
 !test/import-explorer.test.js
 
 !pdf-import-client.js
+
+!test/explorer-preview-library.test.js

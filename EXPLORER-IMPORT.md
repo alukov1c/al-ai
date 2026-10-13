@@ -30,7 +30,7 @@ Ikonica **Otvori AL AI eksplorer** u gornjoj desnoj grupi otvara desni panel. Iz
 - Kreiranje novog podfoldera.
 - Preimenovanje datoteke, uz odbijanje postojećeg odredišta.
 - Trajno brisanje datoteke ili celog izabranog podfoldera, tek nakon potvrde sa prikazanom putanjom.
-- Preuzimanje lokalne datoteke klikom na naziv.
+- Otvaranje lokalnog PDF-a klikom na naziv, sa listanjem stranica i preuzimanjem u podnožju. Ostale datoteke se preuzimaju klikom na naziv.
 - Ručno osvežavanje, proveru po povratku u prozor i proveru na pet sekundi dok je panel otvoren.
 
 Veza se čuva u pregledaču po nalogu/projektu. Potrebne su dozvole pregledača za čitanje i pisanje. Eksplorer nema pristup celom disku niti menja serverovu Biblioteku: uvezene kopije su nezavisne. Pri odjavi se prikaz i aktivne reference uklanjaju. Na desktopu panel rezerviše prostor razgovora; na manjim ekranima se otvara preko njega. Jedan prikaz foldera je ograničen na 2000 stavki, uz poruku kada je granica dostignuta.
@@ -44,3 +44,8 @@ Tri dugmeta alatne trake i zatvaranje koriste zajedničko pravilo iz `accounts.c
 Uključiti nove `pdf-imports.js`, `pdf-import-client.js`, `explorer.js`, migraciju **015_pdf_import_jobs.sql** i izmenjene postojeće datoteke. Migracija se primenjuje automatski pri pokretanju. Postojeće migracije 009–014 ostaju potrebne. Nove zavisnosti nisu uvedene.
 
 Provere: `npm run check`, `npm run test:import-explorer`, `npm run test:books`, `npm run test:second-package-ui`. Proveren je sintetički PDF od oko 20 MB, ponovljeno slanje, ponavljanje i oporavak posle restarta, privatnost između naloga, kao i diskovne operacije kroz stvarne browser filesystem handles u izolovanom testnom prostoru. Sistemski izbor foldera i dozvole su zamenjeni u testu. To ne potvrđuje uspešan uvoz konkretne korisnikove knjige na hostingu niti fizičko menjanje njenog foldera.
+
+### PDF pregled i razgovori projekta
+Lokalni PDF se renderuje u pregledaču već instaliranom PDF.js bibliotekom, bez slanja originala na server. Prikaz podržava PDF do 100 MB i listanje stranica, a preuzimanje koristi isti original. Ugrađeni fontovi se renderuju bez inline stilova. Projekat u Biblioteci prikazuje dostupne razgovore ispod izbornih projektnih stavki; obrađuje se paginacija i klik otvara izabrani razgovor. Osvežavanje Biblioteke osvežava i listu.
+
+Tri dugmeta eksplorera sada imaju manje dimenzije, dekorativne SVG ikonice i jedan horizontalni red, provereno od 320 px. Strelica izbora projekta ima unutrašnji razmak od desne ivice. Dugme za zatvaranje zadržava zajednički stil. Nove migracije i zavisnosti za ove izmene nisu potrebne; potrebno je objaviti izmenjene server.js, explorer.js, app.js, index.html, accounts.css i stil.css. Provera: npm run test:explorer-preview.
