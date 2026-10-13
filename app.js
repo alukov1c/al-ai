@@ -31,6 +31,8 @@ let googleVersion = 0;
 let attachment = null;
 let sidebarSections={};
 let workspace={projects:[],pins:[],plugins:{pdf:true,docx:true,xlsx:true,pptx:true}},activeProject=null,editingProject=null,workSelection=new Set(),workspaceLoad=0;
+function attachmentSizeLimit(name){return /\.pdf$/i.test(name)?30000000:3000000;}
+function validateAttachmentSize(file){const max=attachmentSizeLimit(file.name);if(file.size>max)throw new Error('Najviše '+(max/1000000)+' MB po '+(/\.pdf$/i.test(file.name)?'PDF':'datoteci')+'.');}
 function clearAttachment() {
   attachment = null;
   $('#attachmentInput').value = '';
@@ -46,7 +48,7 @@ $('#attachmentInput').addEventListener('change', async (event) => {
   if (!file || isSending) return;
   const version = epoch;
   await action(async () => {
-    if (file.size > 3000000) throw new Error('Datoteka može imati najviše 3 MB.');
+    validateAttachmentSize(file);
     notice('Čitanje dokumenta…');
     const content = await new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -262,7 +264,7 @@ function addMessageElement(role, content, messageId, image, generationMs, totalT
       button.addEventListener('click', () => downloadDocument(format, conversationId, messageId));
       controls.append(button);
     }
-    if(workFileId){const link=document.createElement('a');link.href='/api/files/'+workFileId;link.textContent='Preuzmi Work dokument';link.className='work-result';controls.append(link);}
+    if(workFileId){const link=document.createElement('a');link.href='/api/files/'+workFileId;link.textContent='Preuzmi Work dokument';link.className='work-result';controls.append(link);const local=document.createElement('button');local.type='button';local.textContent='Sačuvaj u lokalni folder';local.dataset.busy='';local.disabled=isSending;const resultProject=current.projectId;local.addEventListener('click',()=>window.saveWorkToLocalFolder(workFileId,resultProject));controls.append(local);}
     bubble.append(controls);
   }
   if (messageId !== undefined) {
@@ -1262,7 +1264,7 @@ for(const id of ['libraryType','libraryDirection','libraryProject'])$('#'+id).ad
 let librarySearchTimer;$('#librarySearch').addEventListener('input',()=>{clearTimeout(librarySearchTimer);librarySearchTimer=setTimeout(()=>refreshFileLibrary('library'),250);});
 $('#libraryRefresh').addEventListener('click',()=>{refreshFileLibrary('library');refreshWorkRuns();});$('#libraryUpload').addEventListener('click',()=>$('#libraryInput').click());
 $('#libraryInput').addEventListener('change',event=>{const files=[...event.target.files],version=epoch,filter=$('#libraryProject').value,targetProject=filter==='none'?null:workspace.projects.some(p=>p.id===filter)?filter:activeProject;event.target.value='';if(!files.length)return;action(async()=>{
- let imported=0;const errors=[];for(const file of files){if(version!==epoch)return;try{if(file.size>3000000)throw new Error('Najviše 3 MB po datoteci.');const content=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result.split(',')[1]);reader.onerror=()=>reject(new Error('Datoteka nije pročitana.'));reader.readAsDataURL(file);});await api('/api/attachments/extract','POST',{name:file.name,content,projectId:targetProject});imported++;}catch(error){errors.push(file.name+': '+error.message);}}
+ let imported=0;const errors=[];for(const file of files){if(version!==epoch)return;try{validateAttachmentSize(file);const content=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result.split(',')[1]);reader.onerror=()=>reject(new Error('Datoteka nije pročitana.'));reader.readAsDataURL(file);});await api('/api/attachments/extract','POST',{name:file.name,content,projectId:targetProject});imported++;}catch(error){errors.push(file.name+': '+error.message);}}
  if(version!==epoch)return;await refreshFileLibrary('library');$('#libraryStatus').textContent='Uvezeno: '+imported+(errors.length?' · '+errors.join(' · '):'');
  });});
 function applyModules(){

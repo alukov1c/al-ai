@@ -1,6 +1,7 @@
 const {mergeMemories,mergeProfileMemories,parseMemoryImport,parseProfileDocument,replaceProfileMemories,memoryContext,validateSettings}=require('./memory');
 const {recordActivity,activitySummary,activityStreaks}=require('./activity');
 const {workspaceApi,ownProject,pluginAllowed,recordUsage,clearImageReferences}=require('./workspace');
+const {importConversations}=require('./conversation-import');
 const {previewFile}=require('./file-preview');
 const {saveFile,mimeTypes} = require('./files');
 const { validateImage, visionMessages, prepareProfileImage } = require('./images');
@@ -42,6 +43,7 @@ const publicFiles = new Map([
   ['/accounts.css', ['accounts.css', 'text/css; charset=utf-8']],
   ['/math-format.js', ['math-format.js','text/javascript; charset=utf-8']],
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
+  ['/local-folder.js', ['local-folder.js', 'text/javascript; charset=utf-8']],
   ['/AL-AI.svg', ['AL-AI.svg', 'image/svg+xml']]
 ]);
 const katexDist = path.join(path.dirname(require.resolve('katex/package.json')), 'dist');
@@ -51,12 +53,12 @@ function sendJson(response, status, body) {
   response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
   response.end(JSON.stringify(body));
 }
-async function readJson(request) {
+async function readJson(request, maxBytes=5_000_000) {
   let size = 0;
   const chunks = [];
   for await (const chunk of request) {
     size += chunk.length;
-    if (size > 5_000_000) throw new HttpError(413, 'Zahtev je prevelik (najviše 5 MB).');
+    if (size > maxBytes) throw new HttpError(413, 'Zahtev je prevelik (najviše '+(maxBytes/1000000)+' MB).');
     chunks.push(chunk);
   }
   try {
@@ -250,7 +252,7 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
         if (request.headers.origin !== appOrigin) throw new HttpError(403, 'Zahtev mora poticati iz ove aplikacije.');
         if (!(request.headers['content-type'] || '').startsWith('application/json')) throw new HttpError(415, 'Očekuje se JSON zahtev.');
       }
-      const data = write ? await readJson(request) : {};
+      const data = write ? await readJson(request,pathname==='/api/attachments/extract'?41_000_000:5_000_000) : {};
       if (pathname.startsWith('/api/google/')) return sendJson(response, 200, await googleAuth(pathname, request, response, data));
       if (pathname === '/api/login' && request.method === 'POST') {
         const name = username(data.username);
@@ -298,6 +300,10 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
         return sendJson(response, 200, { ok: true });
       }
       if (user.must_change_password) throw new HttpError(403, 'Pre nastavka promenite početnu lozinku.');
+      if(pathname==='/api/conversations/import-external'&&request.method==='POST'){
+        await limitLogin(pool,'conversation-import:'+user.id,20);
+        return sendJson(response,200,await importConversations(pool,user,data));
+      }
       if(await workspaceApi({pool,user,data,pathname,method:request.method,url,chat,send:body=>sendJson(response,200,body)}))return;
       if (pathname === '/api/profile' && request.method === 'GET') {
         return sendJson(response,200,{image:user.profile_image,streaks:await activityStreaks(pool,user.id)});
@@ -439,8 +445,7 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
         if(data.projectId)await ownProject(pool,data.projectId,user.id);
         const extension=path.extname(data.name||'').slice(1).toLowerCase();if(['pdf','docx','xlsx','pptx'].includes(extension))await pluginAllowed(pool,user.id,extension);
         const result=await extractAttachment(data);
-        result.fileId=await saveFile(pool,user.id,{name:result.name,mime:result.image?.mime || mimeTypes[path.extname(result.name).slice(1).toLowerCase()],kind:result.image?'image':'document',direction:'import',content:Buffer.from(result.image?.content || data.content,'base64')});
-        if(data.projectId)await pool.query('UPDATE user_files SET project_id=$2 WHERE id=$1',[result.fileId,data.projectId]);
+        result.fileId=await saveFile(pool,user.id,{name:result.name,mime:result.image?.mime || mimeTypes[path.extname(result.name).slice(1).toLowerCase()],kind:result.image?'image':'document',direction:'import',projectId:data.projectId||null,content:Buffer.from(result.image?.content || data.content,'base64')});
         return sendJson(response, 200, result);
       }
       if (pathname.startsWith('/api/admin/')) {

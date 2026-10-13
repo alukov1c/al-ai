@@ -5,13 +5,14 @@ let active=0;
 async function previewFile(file,page=1){
  if(!Number.isSafeInteger(page)||page<1)throw new HttpError(400,'Neispravna stranica.');
  if(active>=2)throw new HttpError(429,'Pregled je zauzet. Pokušajte ponovo.');
- if(file.content.length>20000000)throw new HttpError(413,'Dokument je prevelik za pregled.');
+ const isPdf=path.extname(file.name).toLowerCase()==='.pdf';
+ if(file.content.length>(isPdf?30000000:20000000))throw new HttpError(413,'Dokument je prevelik za pregled.');
  active++;
  try{return await new Promise((resolve,reject)=>{
-  const child=fork(path.join(__dirname,'attachment-worker.js'),[],{execArgv:['--max-old-space-size=192'],stdio:['ignore','ignore','ignore','ipc']});
+  const child=fork(path.join(__dirname,'attachment-worker.js'),[],{execArgv:[isPdf?'--max-old-space-size=256':'--max-old-space-size=192'],stdio:['ignore','ignore','ignore','ipc']});
   let done=false;
   const finish=(error,result)=>{if(done)return;done=true;clearTimeout(timer);child.kill();error?reject(error):resolve(result);};
-  const timer=setTimeout(()=>finish(new HttpError(422,'Pregled traje predugo. Pokušajte sa manjim dokumentom.')),20000);
+  const timer=setTimeout(()=>finish(new HttpError(422,'Pregled traje predugo. Pokušajte sa manjim dokumentom.')),isPdf?60000:20000);
   child.once('message',result=>result.error?finish(new HttpError(422,result.error)):finish(null,result.kind?result:{kind:'text',text:result.text}));
   child.once('error',()=>finish(new HttpError(422,'Pregled nije dostupan.')));
   child.once('exit',()=>finish(new HttpError(422,'Obrada pregleda je prekinuta.')));

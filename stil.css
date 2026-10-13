@@ -1601,3 +1601,5 @@ textarea::placeholder {
 .conversation-topic-options>strong{display:block;padding:6px 10px;color:#374151}
 .transfer-status{padding:8px 10px;color:var(--muted)}
 .conversation-topic{overflow-wrap:anywhere}
+
+.folder-toolbar{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.local-folder-files{max-height:40dvh;overflow:auto;overflow-wrap:anywhere;margin:12px 0}.local-folder-files label{display:flex;align-items:center;gap:8px;margin:8px 0}.local-folder-files input[type=checkbox]{width:auto;flex-shrink:0}#localFolderDialog p,#externalImportDialog p{overflow-wrap:anywhere}#externalImportDialog label{display:grid;gap:6px;margin:12px 0}#externalImportOpen,#projectLocalFolder{margin:8px 0}

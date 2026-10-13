@@ -71,3 +71,11 @@ RENDER-POKRETANJE.md
 # Obavezni moduli prvog paketa
 !workspace.js
 !test/workspace.test.js
+
+# Drugi paket
+!conversation-import.js
+!local-folder.js
+!test/second-package.test.js
+!test/second-package-ui.js
+
+!test/pdf-size-limit.test.js

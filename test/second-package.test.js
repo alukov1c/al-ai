@@ -1,0 +1,31 @@
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const {parseConversations}=require('../conversation-import');
+const {fixture}=require('./fixture');
+test('External parsers select ChatGPT active branch and retain only user/assistant text',()=>{
+ const text=JSON.stringify([{title:'Grane',current_node:'chosen',mapping:{root:{parent:null,message:{author:{role:'system'},content:{content_type:'text',parts:['system']}}},user:{parent:'root',message:{author:{role:'user'},content:{content_type:'text',parts:['Pitanje']}}},other:{parent:'user',message:{author:{role:'assistant'},content:{content_type:'text',parts:['Napušten odgovor']}}},chosen:{parent:'user',message:{author:{role:'assistant'},content:{content_type:'text',parts:['Izabrani odgovor']}}}}}]);
+ assert.deepEqual(parseConversations(text).conversations[0].messages,[{role:'user',content:'Pitanje'},{role:'assistant',content:'Izabrani odgovor'}]);
+ const claude=parseConversations(JSON.stringify([{name:'Claude',chat_messages:[{sender:'human',text:'Pitanje',attachments:[{}]},{sender:'assistant',content:[{type:'text',text:'Odgovor'},{type:'tool_use',input:{secret:'skip'}}]}]}]));
+ assert.equal(claude.conversations[0].messages[1].content,'Odgovor');assert.equal(claude.warnings.length,1);
+ assert.throws(()=>parseConversations('{bad'),/JSON/);assert.throws(()=>parseConversations(JSON.stringify({mapping:{a:{parent:'a'}},current_node:'a'})),/grana/);
+ assert.throws(()=>parseConversations(JSON.stringify({messages:[{role:'system',content:'Samo sistem'}]})),/tekstualnih/);
+ assert.throws(()=>parseConversations(JSON.stringify(new Array(101).fill({}))),/100/);
+});
+test('External import is private, atomic, project-aware and idempotent without AI calls',async t=>{
+ const app=await fixture();t.after(()=>app.close());const admin=app.client(),guest=app.client();await admin.login('admin','Admin-password-test-123');
+ const projectId=(await admin.request('/api/projects','POST',{name:'Uvoz'})).data.id;
+ const body={projectId,text:JSON.stringify([{title:'Izvor',messages:[{role:'user',content:'Šta je IoT?'},{role:'assistant',content:'**Odgovor**'}]},{name:'Claude',chat_messages:[{sender:'human',text:'Drugo pitanje'}]}])};
+ assert.equal((await guest.request('/api/conversations/import-external','POST',body)).status,401);
+ const preview=await admin.request('/api/conversations/import-external','POST',{...body,preview:true});assert.equal(preview.status,200);assert.equal(preview.data.items.length,2);assert.equal((await admin.request('/api/conversations')).data.conversations.length,0);
+ const first=await admin.request('/api/conversations/import-external','POST',body);assert.equal(first.status,200);assert.equal(first.data.imported,2);
+ const repeat=await admin.request('/api/conversations/import-external','POST',body);assert.equal(repeat.data.imported,0);assert.equal(repeat.data.skipped,2);
+ const conv=(await admin.request('/api/conversations/'+first.data.ids[0])).data.conversation;assert.equal(conv.projectId,projectId);assert.equal(conv.messages.length,2);assert.equal(conv.messages[1].content,'**Odgovor**');assert.equal(conv.messages[1].totalTokens,null);assert.equal(app.calls.length,0);
+ const invalid=await admin.request('/api/conversations/import-external','POST',{text:JSON.stringify([{title:'Must rollback',messages:[{role:'user',content:'Good'}]},{unsupported:true}])});assert.equal(invalid.status,400);assert.equal((await admin.request('/api/conversations')).data.conversations.length,2);
+ await admin.request('/api/admin/users','POST',{username:'import-other',displayName:'Other',password:'Initial-password-123'});const other=app.client();await other.login('import-other','Initial-password-123');await other.request('/api/password','POST',{currentPassword:'Initial-password-123',password:'Changed-password-456'});await other.login('import-other','Changed-password-456');
+ assert.equal((await other.request('/api/conversations/import-external','POST',body)).status,404);
+ assert.equal((await other.request('/api/conversations/'+first.data.ids[0])).status,404);
+ const own=await other.request('/api/conversations/import-external','POST',{text:body.text});assert.equal(own.data.imported,2);
+ const file=await admin.request('/api/attachments/extract','POST',{projectId,name:'sensor.txt',content:Buffer.from('T=25').toString('base64')});assert.equal(file.status,200);assert.equal((await admin.request('/api/files')).data.files[0].project_id,projectId);
+ await admin.request('/api/projects/'+projectId,'PATCH',{archived:true});assert.equal((await admin.request('/api/conversations/import-external','POST',body)).status,409);
+ assert.equal((await admin.request('/api/attachments/extract','POST',{projectId,name:'sensor.txt',content:Buffer.from('T=26').toString('base64')})).status,409);assert.equal((await admin.request('/api/files')).data.files.length,1);
+});
