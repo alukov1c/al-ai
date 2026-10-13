@@ -42,6 +42,10 @@ class PdfImportQueue {
 async function pdfImportsApi({pool,user,data,pathname,method,queue,send}){
  const existing=pathname.match(/^\/api\/pdf-imports\/from-file\/([0-9a-f-]+)$/i);
  if(existing&&method==='POST'){await limitLogin(pool,'pdf-import:'+user.id,20);const file=(await pool.query('SELECT * FROM user_files WHERE id=$1 AND user_id=$2',[validId(existing[1]),user.id])).rows[0];if(!file)throw new HttpError(404,'Original nije pronađen.');const result=await acceptPdf(pool,user,{name:file.name,projectId:file.project_id,content:Buffer.from(file.content).toString('base64')},file.id);send(result);queue.wake();return true;}
+ if(pathname==='/api/pdf-imports/find'&&method==='POST'){
+  if(typeof data.fingerprint!=='string'||!/^[a-f0-9]{64}$/.test(data.fingerprint))throw new HttpError(400,'Neispravan otisak PDF-a.');const scope=data.projectId?validId(data.projectId):'';
+  const row=(await pool.query("SELECT j.* FROM pdf_import_jobs j JOIN user_files f ON f.id=j.file_id WHERE j.user_id=$1 AND f.user_id=$1 AND j.scope=$2 AND coalesce(f.project_id::text,'')=$2 AND j.fingerprint=$3",[user.id,scope,data.fingerprint])).rows[0];send({job:row?view(row):null});if(row)queue.wake();return true;
+ }
  if(pathname==='/api/pdf-imports'&&method==='POST'){await limitLogin(pool,'pdf-import:'+user.id,20);const result=await acceptPdf(pool,user,data);send(result);queue.wake();return true;}
  if(pathname==='/api/pdf-imports'&&method==='GET'){send({jobs:(await pool.query("SELECT * FROM pdf_import_jobs WHERE user_id=$1 AND file_id IS NOT NULL AND status<>'complete' ORDER BY created_at DESC LIMIT 100",[user.id])).rows.map(view)});return true;}
  const route=pathname.match(/^\/api\/pdf-imports\/([0-9a-f-]+)(?:\/(retry))?$/i);if(route){const row=(await pool.query('SELECT * FROM pdf_import_jobs WHERE id=$1 AND user_id=$2',[validId(route[1]),user.id])).rows[0];if(!row)throw new HttpError(404,'Uvoz nije pronađen.');

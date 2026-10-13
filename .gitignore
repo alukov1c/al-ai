@@ -102,3 +102,5 @@ RENDER-POKRETANJE.md
 
 !local-pdf-client.js
 !test/local-pdf.test.js
+
+!test/pdf-recovery-tabs.test.js

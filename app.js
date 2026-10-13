@@ -133,17 +133,24 @@ function signedOut(message = '') {
   $('#loginError').textContent = message;
   setBusy(false);
 }
+function parseApiPayload(source,status){
+  try{const data=JSON.parse(source);if(!data||typeof data!=='object')throw Error();return data;}catch{
+    const error=new Error(status===413?'Server je odbio veličinu zahteva (HTTP 413). Proverite ograničenje hostinga za slanje PDF-a.':'Server nije vratio očekivane podatke (HTTP '+status+'). '+([502,503,504,408,429].includes(status)?'Hosting je privremeno nedostupan ili je zahtev istekao.':'Proverite dostupnost servera i objavljenu verziju aplikacije.'));
+    error.status=status;error.nonJson=true;error.retryable=status===0||status===200||[408,429,500,502,503,504].includes(status);throw error;
+  }
+}
 async function api(url, method = 'GET', body) {
   const requestEpoch=epoch;
-  const response = await fetch(url, {
+  let response;try{response = await fetch(url, {
     method, credentials: 'same-origin',
     headers: method === 'GET' ? {} : { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
     ...(body === undefined ? {} : { body: JSON.stringify(body) })
   });
-  const data = await response.json();
+  }catch(cause){const error=new Error('Veza sa serverom je prekinuta. Proverite vezu i dostupnost hostinga.');error.retryable=true;error.status=0;throw error;}
+  let data;try{data=parseApiPayload(await response.text(),response.status);}catch(error){if(response.status===401&&requestEpoch===epoch&&currentUser)signedOut(error.message);throw error;}
   if (!response.ok) {
     if (response.status === 401 && requestEpoch===epoch && url !== '/api/login' && url !== '/api/google/login') signedOut(currentUser ? data.error : '');
-    throw new Error(data.error || 'Zahtev nije uspeo.');
+    const error=new Error(data.error || 'Zahtev nije uspeo.');error.status=response.status;error.retryable=[408,429,500,502,503,504].includes(response.status);throw error;
   }
   return data;
 }

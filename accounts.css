@@ -7,7 +7,7 @@
 .account-form label { display:grid; gap:6px; font-size:13px; }
 .account-form input { width:100%; padding:11px; border:1px solid var(--line); border-radius:9px; background:white; color:var(--text); font:inherit; }
 .account-form input:focus { outline:2px solid rgba(37,99,235,.4); outline-offset:2px; }
-.account-form button, .account-dialog button, .account-controls button, #moreHistory, #retryButton, .al-explorer .folder-toolbar button, .al-explorer .explorer-heading button {
+.account-form button, .account-dialog button, #documentTabsBar button, .pdf-window-actions button, .account-controls button, #moreHistory, #retryButton, .al-explorer .folder-toolbar button, .al-explorer .explorer-heading button {
   padding:9px 12px; border:1px solid var(--line); border-radius:9px; background:#fff; color:#1d4ed8; cursor:pointer; font:inherit;
 }
 .account-form button[type=submit] { background:var(--blue); color:white; }

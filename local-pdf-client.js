@@ -14,7 +14,10 @@
   const names=pdfs.filter(e=>fold(prompt).includes(fold(e.path))||fold(prompt).includes(fold(e.path.split('/').at(-1))));
   const asksContent=/(pdf|dokument|knjig|zadat|poglav|stranic|odlom|tekst|citir|pročitaj|procitaj|sažm|sazm|rezimir|analiz|exercise|chapter|summari|документ|књиг|задат|поглав|страниц|одлом|текст|прочитај|сажм|анализ)/i.test(prompt);
   const listsFiles=/(spisak|izlist|naziv|veličin|velicin|koliko.*(pdf|dokument)|koji.*(pdf|dokumenti).*folder|da li.*(ima|postoji|postoje))/i.test(prompt)&&!/(zadat|poglav|stranic|odlom|tekst|citir|pročitaj|procitaj|sažm|sazm|analiz)/i.test(prompt);
-  if(listsFiles||(!asksContent&&!names.length))return null;
+  const namesDocument=/(pdf|dokument|knjig|документ|књиг)/i.test(prompt)||names.length>0;
+  const asksExisting=/(iz|na osnovu|u folderu|povezan).*(pdf|dokument|knjig)|(pdf|dokument|knjig).*(folder|projekt)/i.test(prompt);
+  const createsOutput=/(napiši|napisi|kreiraj|napravi|generiši|generisi|izradi|create|generate).{0,60}(pdf|dokument|knjig)|(kao|formatu|format|u vidu)\s+(pdf|dokument)/i.test(prompt);
+  if(listsFiles||!namesDocument||(!asksContent&&!names.length)||(createsOutput&&!asksExisting&&!names.length))return null;
   const version=epoch,user=currentUser?.id;let path=names.length===1?names[0].path:pdfs.length===1?pdfs[0].path:null;
   if(!path){$('#projectPdfSelect').replaceChildren();for(const entry of pdfs){const option=document.createElement('option');option.value=entry.path;option.textContent=entry.path;$('#projectPdfSelect').append(option);}dialog.returnValue='';path=await new Promise(resolve=>{choosing=resolve;choosing.user=user;dialog.showModal();});if(!path)throw new Error('Čitanje PDF-a je otkazano. Pitanje nije poslato.');}
   if(version!==epoch||user!==currentUser?.id)throw new Error('Sesija je promenjena.');

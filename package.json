@@ -25,7 +25,8 @@
     "test:import-explorer": "node --test test/import-explorer.test.js",
     "test:explorer-preview": "node --test test/explorer-preview-library.test.js",
     "test:folder-context": "node --test test/folder-context.test.js",
-    "test:local-pdf": "node --test test/local-pdf.test.js"
+    "test:local-pdf": "node --test test/local-pdf.test.js",
+    "test:pdf-recovery-tabs": "node --test test/pdf-recovery-tabs.test.js"
   },
   "engines": {
     "node": ">=20.16.0 <21 || >=22.3.0"
