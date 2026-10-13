@@ -62,6 +62,8 @@
  window.localFolderAccess={
   async get(projectId){const ctx={epoch,user:currentUser?.id,project:projectId};if(!ctx.user||!workspace.projects.some(p=>p.id===projectId))throw new Error('Izaberite aktivan projekat.');const linked=await storage(ctx);if(!contextValid(ctx))throw new Error('Sesija je promenjena.');return {...linked,ctx};},
   async connect(projectId){if(!window.showDirectoryPicker)throw new Error('Direktan pristup folderu nije podržan u ovom pregledaču.');if(!currentUser||!workspace.projects.some(p=>p.id===projectId))throw new Error('Izaberite projekat.');const ctx={epoch,user:currentUser.id,project:projectId};const handle=await window.showDirectoryPicker({mode:'read'});if(!contextValid(ctx))throw new Error('Sesija je promenjena.');const linked={handle,name:handle.name,uploads:{}};await storage(ctx,linked);return {...linked,ctx};},
+  uploadPdf:uploadWithProgress,
+  async rememberUpload(linked,fingerprint,fileId){if(!contextValid(linked.ctx))throw new Error('Sesija je promenjena.');const saved=await storage(linked.ctx);if(!saved?.handle||!await saved.handle.isSameEntry(linked.handle))throw new Error('Povezani folder je promenjen. Pošaljite novo pitanje.');saved.uploads={...saved.uploads,[fingerprint]:fileId};await storage(linked.ctx,saved);},
   valid:contextValid,permission
  };
  const outputWrites=new Set();

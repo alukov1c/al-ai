@@ -5,7 +5,7 @@
   "description": "DeepSeek asistent sa privatnim korisničkim razgovorima u PostgreSQL bazi",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --check app.js && node --check auth.js && node --check db.js && node --check google-auth.js && node --check config.js && node --check attachments.js && node --check attachment-worker.js && node --check exports.js && node --check export-worker.js && node --check document-export.js && node --check images.js && node --check files.js && node --check math-format.js && node --check pdf-math.js && node --check file-preview.js && node --check memory.js && node --check activity.js && node --check workspace.js && node --check conversation-import.js && node --check local-folder.js && node --check books.js && node --check books-ui.js && node --check pdf-imports.js && node --check explorer.js && node --check pdf-import-client.js && node --check pdf-viewer.js && node --check panel-resize.js && node --check folder-context.js && node --check project-folder-client.js",
+    "check": "node --check server.js && node --check app.js && node --check auth.js && node --check db.js && node --check google-auth.js && node --check config.js && node --check attachments.js && node --check attachment-worker.js && node --check exports.js && node --check export-worker.js && node --check document-export.js && node --check images.js && node --check files.js && node --check math-format.js && node --check pdf-math.js && node --check file-preview.js && node --check memory.js && node --check activity.js && node --check workspace.js && node --check conversation-import.js && node --check local-folder.js && node --check books.js && node --check books-ui.js && node --check pdf-imports.js && node --check explorer.js && node --check pdf-import-client.js && node --check pdf-viewer.js && node --check panel-resize.js && node --check folder-context.js && node --check project-folder-client.js && node --check local-pdf-client.js",
     "test": "node --test --test-concurrency=1 test/accounts.test.js test/config.test.js test/attachments.test.js test/images-files.test.js test/memory.test.js",
     "db:migrate": "node scripts/migrate.js",
     "admin:reset": "node scripts/reset-admin.js",
@@ -24,7 +24,8 @@
     "test:books": "node --test test/books.test.js",
     "test:import-explorer": "node --test test/import-explorer.test.js",
     "test:explorer-preview": "node --test test/explorer-preview-library.test.js",
-    "test:folder-context": "node --test test/folder-context.test.js"
+    "test:folder-context": "node --test test/folder-context.test.js",
+    "test:local-pdf": "node --test test/local-pdf.test.js"
   },
   "engines": {
     "node": ">=20.16.0 <21 || >=22.3.0"

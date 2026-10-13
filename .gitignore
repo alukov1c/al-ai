@@ -99,3 +99,6 @@ RENDER-POKRETANJE.md
 !folder-context.js
 !project-folder-client.js
 !test/folder-context.test.js
+
+!local-pdf-client.js
+!test/local-pdf.test.js

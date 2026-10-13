@@ -554,10 +554,11 @@ async function sendMessage(value, retry = null) {
       activeId = current.id;
     }
     const folderSnapshot=retry?.folderSnapshot??(window.collectProjectFolderSnapshot?await window.collectProjectFolderSnapshot(current.projectId):null);if(version!==epoch)return;
-    attempt = { folderSnapshot,conversationId: current.id, requestId: retry?.id || crypto.randomUUID(),
-      prompt, fileId: retry?.fileId || attached?.fileId || null, image: retry?.image || attached?.image || null, model: retry?.model || modelSelect.value };
+    const localPdf=!retry&&!attached&&!workSelection.size&&window.prepareProjectPdfForQuestion?await window.prepareProjectPdfForQuestion(question,folderSnapshot,notice):null;if(version!==epoch)return;
+    attempt = { bookFileId:retry?.bookFileId||localPdf?.fileId||null,folderSnapshot,conversationId: current.id, requestId: retry?.id || crypto.randomUUID(),
+      prompt, fileId: retry?.bookFileId ? null : retry?.fileId || attached?.fileId || null, image: retry?.image || attached?.image || null, model: retry?.model || modelSelect.value };
     clearTimeout(pollTimer);
-    if(mode==='work')attempt={...attempt,mode:'work',prompt:retry?.prompt || question || 'Pročitaj i sažmi izabrane datoteke.',format:retry?.format || $('#workFormat').value,fileIds:retry?.fileIds || [...new Set([...workSelection,...(attached?.fileId?[attached.fileId]:[])])],settings:retry?.settings || documentPreferences()};
+    if(mode==='work')attempt={...attempt,mode:'work',prompt:retry?.prompt || question || 'Pročitaj i sažmi izabrane datoteke.',format:retry?.format || $('#workFormat').value,fileIds:retry?.fileIds || [...new Set([...workSelection,...(attached?.fileId?[attached.fileId]:[]),...(localPdf?[localPdf.fileId]:[])])],settings:retry?.settings || documentPreferences()};
     const result=await api(mode==='work'?'/api/work':'/api/chat', 'POST', attempt);
     if (version !== epoch) return;
     stopGenerationTimer();
@@ -575,7 +576,7 @@ async function sendMessage(value, retry = null) {
       try { await refreshCurrent(); } catch { /* Zadržati mogućnost ponavljanja posle prekida veze. */ }
       if(mode==='work'&&current){retryRequest={...attempt,id:attempt.requestId,status:'failed'};$('#retryButton').hidden=false;}
       else if (current && !current.request) {
-        retryRequest = { id: attempt.requestId,mode:'chat', prompt,folderSnapshot:attempt.folderSnapshot, fileId: attempt.fileId, image: attempt.image, model: attempt.model, status: 'failed' };
+        retryRequest = { id: attempt.requestId,mode:'chat', prompt,bookFileId:attempt.bookFileId,folderSnapshot:attempt.folderSnapshot, fileId: attempt.fileId, image: attempt.image, model: attempt.model, status: 'failed' };
         $('#retryButton').hidden = false;
       }
     }
