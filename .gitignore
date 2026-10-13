@@ -61,9 +61,8 @@ pglite-data/
 Thumbs.db
 Desktop.ini
 
-# Postojeća lokalna dokumentacija
-README.md
-RENDER-POKRETANJE.md
+# Markdown dokumentacija
+*.md
 
 # JavaScript datoteke
 *.js
