@@ -95,3 +95,7 @@ RENDER-POKRETANJE.md
 !pdf-viewer.js
 
 !panel-resize.js
+
+!folder-context.js
+!project-folder-client.js
+!test/folder-context.test.js

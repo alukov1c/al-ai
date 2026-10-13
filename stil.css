@@ -1621,3 +1621,18 @@ textarea::placeholder {
 .explorer-navigation{display:flex;gap:6px;margin:10px 0}.explorer-navigation button{display:grid;place-items:center;padding:6px}.explorer-navigation svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}.al-explorer button:disabled{opacity:.45;cursor:default}.explorer-row .explorer-more{flex:0 0 28px;width:28px;padding:2px;font-size:20px;border:0;background:transparent;opacity:.7}.explorer-row:hover .explorer-more,.explorer-more:focus-visible{opacity:1}
 
 :root{--al-sidebar-width:270px;--al-explorer-width:360px}@media(min-width:701px){.app-shell:not(.sidebar-collapsed){grid-template-columns:var(--al-sidebar-width) minmax(0,1fr)}}.al-explorer{width:var(--al-explorer-width)}.app-shell.explorer-open{width:calc(100% - var(--al-explorer-width))}.panel-resize-bar{position:fixed;top:0;bottom:0;width:6px;z-index:55;cursor:col-resize;touch-action:none;background:transparent}.panel-resize-bar:before{content:"";position:absolute;top:0;bottom:0;left:2px;width:2px;background:#d6e0ef}.panel-resize-bar:hover:before,.panel-resize-bar:focus-visible:before,.panel-resizing .panel-resize-bar:before{background:var(--blue)}.panel-resize-bar:focus-visible{outline:2px solid #2563eb;outline-offset:-2px}.panel-resizing{user-select:none;cursor:col-resize}.panel-resizing .app-shell{transition:none}@media(max-width:1000px){.al-explorer{width:min(var(--al-explorer-width),100vw)}.app-shell.explorer-open{width:100%}}@media(max-width:700px){.sidebar{width:var(--al-sidebar-width)}}
+
+/* Diskretne skrol trake samo u bočnim panelima. */
+:is(#sidebar,#history,#projectList,#pinnedList,#scheduledList,#alExplorer){scrollbar-width:thin;scrollbar-color:transparent transparent}
+#sidebar:hover,#sidebar:hover :is(#history,#projectList,#pinnedList,#scheduledList),#alExplorer:hover{scrollbar-color:rgba(86,101,128,.35) transparent}
+:is(#sidebar,#history,#projectList,#pinnedList,#scheduledList,#alExplorer)::-webkit-scrollbar{width:4px;height:4px}
+:is(#sidebar,#history,#projectList,#pinnedList,#scheduledList,#alExplorer)::-webkit-scrollbar-track{background:transparent}
+:is(#sidebar,#history,#projectList,#pinnedList,#scheduledList,#alExplorer)::-webkit-scrollbar-thumb{background:transparent;border:0;border-radius:4px}
+#sidebar:hover::-webkit-scrollbar-thumb,#sidebar:hover :is(#history,#projectList,#pinnedList,#scheduledList)::-webkit-scrollbar-thumb,#alExplorer:hover::-webkit-scrollbar-thumb{background:rgba(86,101,128,.35)}
+:is(#sidebar,#history,#projectList,#pinnedList,#scheduledList,#alExplorer)::-webkit-scrollbar-thumb:hover{background:rgba(86,101,128,.55)}
+@supports selector(::-webkit-scrollbar){:is(#sidebar,#history,#projectList,#pinnedList,#scheduledList,#alExplorer){scrollbar-width:auto}}
+.panel-resize-bar:before{width:1px;background:transparent}.panel-resize-bar:hover:before,.panel-resize-bar:focus-visible:before{background:rgba(37,99,235,.4)}.panel-resizing .panel-resize-bar:before{background:rgba(37,99,235,.55)}
+
+/* Centralni prikaz koristi isti diskretan skrol kao bočni paneli. */
+#messages{scrollbar-width:thin;scrollbar-color:transparent transparent}#messages:hover{scrollbar-color:rgba(86,101,128,.35) transparent}
+#messages::-webkit-scrollbar{width:4px;height:4px}#messages::-webkit-scrollbar-track{background:transparent}#messages::-webkit-scrollbar-thumb{background:transparent;border:0;border-radius:4px}#messages:hover::-webkit-scrollbar-thumb{background:rgba(86,101,128,.35)}#messages::-webkit-scrollbar-thumb:hover{background:rgba(86,101,128,.55)}@supports selector(::-webkit-scrollbar){#messages{scrollbar-width:auto}}

@@ -553,7 +553,8 @@ async function sendMessage(value, retry = null) {
       current = result.conversation;
       activeId = current.id;
     }
-    attempt = { conversationId: current.id, requestId: retry?.id || crypto.randomUUID(),
+    const folderSnapshot=retry?.folderSnapshot??(window.collectProjectFolderSnapshot?await window.collectProjectFolderSnapshot(current.projectId):null);if(version!==epoch)return;
+    attempt = { folderSnapshot,conversationId: current.id, requestId: retry?.id || crypto.randomUUID(),
       prompt, fileId: retry?.fileId || attached?.fileId || null, image: retry?.image || attached?.image || null, model: retry?.model || modelSelect.value };
     clearTimeout(pollTimer);
     if(mode==='work')attempt={...attempt,mode:'work',prompt:retry?.prompt || question || 'Pročitaj i sažmi izabrane datoteke.',format:retry?.format || $('#workFormat').value,fileIds:retry?.fileIds || [...new Set([...workSelection,...(attached?.fileId?[attached.fileId]:[])])],settings:retry?.settings || documentPreferences()};
@@ -574,7 +575,7 @@ async function sendMessage(value, retry = null) {
       try { await refreshCurrent(); } catch { /* Zadržati mogućnost ponavljanja posle prekida veze. */ }
       if(mode==='work'&&current){retryRequest={...attempt,id:attempt.requestId,status:'failed'};$('#retryButton').hidden=false;}
       else if (current && !current.request) {
-        retryRequest = { id: attempt.requestId,mode:'chat', prompt, fileId: attempt.fileId, image: attempt.image, model: attempt.model, status: 'failed' };
+        retryRequest = { id: attempt.requestId,mode:'chat', prompt,folderSnapshot:attempt.folderSnapshot, fileId: attempt.fileId, image: attempt.image, model: attempt.model, status: 'failed' };
         $('#retryButton').hidden = false;
       }
     }
