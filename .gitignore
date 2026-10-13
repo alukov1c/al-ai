@@ -79,3 +79,7 @@ RENDER-POKRETANJE.md
 !test/second-package-ui.js
 
 !test/pdf-size-limit.test.js
+
+!books.js
+!books-ui.js
+!test/books.test.js

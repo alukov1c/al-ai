@@ -272,7 +272,7 @@
           <label>PPTX — odnos stranica<select id="documentSlides"><option value="wide">16:9</option><option value="standard">4:3</option></select></label>
           <label class="checkbox-label"><input id="documentWrap" type="checkbox">XLSX — prelamanje teksta u ćelijama</label>
           <button type="submit">Sačuvaj podešavanja</button><p id="documentSettingsStatus" role="status"></p>
-        </form><p>Podešavanja važe za vaš nalog u ovom pregledaču. Prilozi: PDF, DOCX, XLSX, PPTX i tekstualne datoteke. PDF do 30 MB, ostale datoteke do 3 MB; izdvojeni tekst do 40.000 znakova. Iz PDF-a se čita tekst; skenirane stranice možete priložiti kao slike.</p><button id="exportConversation" type="button" data-busy>Preuzmi sve odgovore ovog razgovora</button></section>
+        </form><p>Podešavanja važe za vaš nalog u ovom pregledaču. Prilozi: PDF, DOCX, XLSX, PPTX i tekstualne datoteke. PDF do 30 MB, ostale datoteke do 3 MB; tekst ostalih dokumenata do 40.000 znakova. PDF knjige se obrađuju po stranicama (do 1500 stranica / 5 miliona znakova). Iz PDF-a se čita tekst; skenirane stranice možete priložiti kao slike.</p><button id="exportConversation" type="button" data-busy>Preuzmi sve odgovore ovog razgovora</button></section>
       </div>
     </div>
   </dialog>
@@ -328,5 +328,6 @@
   <script src="math-format.js" defer></script>
   <script src="app.js" defer></script>
   <script src="local-folder.js" defer></script>
+  <script src="books-ui.js" defer></script>
 </body>
 </html>

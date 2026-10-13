@@ -37,8 +37,10 @@ Uvoz prenosi samo tekst korisnika i asistenta. Sistemske poruke i pozivi alatki 
 
 ## Objavljivanje i provere
 
-Uključiti nove `conversation-import.js` i `local-folder.js`, kao i izmenjene `server.js`, `files.js`, `app.js`, `index.html`, `stil.css` i `package.json`. Nove migracije i zavisnosti nisu potrebne; koristi se postojeća baza prvog paketa. `.gitignore` izuzima nove module i testove iz opšteg `*.js` pravila.
+Uključiti nove `conversation-import.js` i `local-folder.js`, kao i izmenjene `server.js`, `files.js`, `app.js`, `index.html`, `stil.css` i `package.json`. Za osnovni drugi paket koristi se baza prvog paketa. Proširenje za PDF knjige zahteva migraciju 014_pdf_books.sql; nove zavisnosti nisu potrebne. `.gitignore` izuzima nove module i testove iz opšteg `*.js` pravila.
 
 Provere: `npm run check`, `npm run test:second-package`, `npm run test:second-package-ui`, `npm run test:workspace`. Testovi koriste probnu PGlite bazu i simulirani odgovor modela. Provera pregledača koristi stvarne filesystem handles u izolovanom origin storage-u, uz zamenu sistemskog pickera/dozvola, i stvarni testni folder za rezervni uvoz. Time se ne potvrđuje ručni sistemski izbor/dozvola na korisnikovom računaru niti objavljena aplikacija.
 
 PDF limit je 30.000.000 bajtova. Veći PDF može se uvesti i pregledati, ali izdvojeni tekst i dalje ima limit 40.000 znakova. Obrada PDF-a ima do 60 sekundi; skenirani PDF zahteva OCR koji ovaj tok ne uključuje.
+
+Za PDF knjige je dodata obrada po stranicama, pretraga i sažimanje sa nastavkom. Aktuelni limiti i nova migracija 014 opisani su u PDF-BOOKS.md. Traka napretka lokalnog uvoza prikazuje čitanje, slanje i završetak obrade.

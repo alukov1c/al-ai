@@ -22,6 +22,12 @@
         process.send({kind:'pdf', page:workerData.page, pages:info.total, image:'data:image/png;base64,'+Buffer.from(result.pages[0].data).toString('base64')});
         return;
       }
+      if(workerData.book){
+        const info=await parser.getInfo();if(info.total>1500)throw new Error('Dokument sadrži više od 1500 stranica. Podelite knjigu.');
+        const pages=[];let characters=0;
+        for(let start=1;start<=info.total;start+=20){const result=await parser.getText({partial:Array.from({length:Math.min(20,info.total-start+1)},(_,i)=>start+i)});for(const p of result.pages){const content=p.text.replace(/\u0000/g,'').trim();characters+=content.length;if(characters>5000000)throw new Error('Dokument sadrži više od 5 miliona znakova. Podelite knjigu.');pages.push({num:p.num,text:content});}}
+        const fullText=characters<=40000?pages.map(p=>p.text).join('\n\n').trim():'';process.send({pages,text:fullText.length<=40000?fullText:''});return;
+      }
       text = (await parser.getText()).text;
     } finally { await parser.destroy(); }
   } else if (workerData.extension === '.docx') {

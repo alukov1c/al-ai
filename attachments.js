@@ -23,12 +23,12 @@ async function extractAttachment(data) {
         if (done) return;
         done = true;
         clearTimeout(timer);
-        worker.kill(); if (error) reject(error); else resolve({ name, text: result });
+        worker.kill(); if (error) reject(error); else resolve({ name, ...(typeof result==='object'?result:{text:result}) });
       };
-      const timer = setTimeout(() => finish(new HttpError(422, 'Obrada traje predugo. Pokušajte sa manjim dokumentom.')), extension==='.pdf'?60000:20000);
-      worker.once('message', (result) => result.error ? finish(new HttpError(422, result.error)) : finish(null, result.text));
+      const timer = setTimeout(() => finish(new HttpError(422, 'Obrada traje predugo. Pokušajte sa manjim dokumentom.')), extension==='.pdf'?120000:20000);
+      worker.once('message', (result) => result.error ? finish(new HttpError(422, result.error)) : finish(null, extension==='.pdf'?result:result.text));
       worker.once('error', () => finish(new HttpError(422, 'Dokument nije moguće pročitati. Proverite format i veličinu.')));
-      worker.send({ buffer: buffer.toString('base64'), extension });
+      worker.send({ buffer: buffer.toString('base64'), extension,book:extension==='.pdf' });
       worker.once('exit', () => { if (!done) finish(new HttpError(422, 'Obrada dokumenta je prekinuta.')); });
     });
   } finally { active--; }

@@ -3,6 +3,7 @@
  const supported=/\.(pdf|docx|xlsx|pptx|txt|md|csv|json|log|png|jpe?g|webp|gif)$/i;
  const folderDialog=document.createElement('dialog');folderDialog.className='account-dialog';folderDialog.id='localFolderDialog';
  folderDialog.innerHTML='<div class="dialog-heading"><h2>Lokalni folder projekta</h2><button type="button" id="localFolderClose" aria-label="Zatvori">×</button></div><p id="localFolderName"></p><p>Izaberite datoteke za slanje u Biblioteku projekta. Za obradu ih zatim izaberite u Work režimu. Originali ostaju u folderu.</p><div class="folder-toolbar"><button type="button" id="localFolderConnect">Poveži folder</button><button type="button" id="localFolderScan">Osveži datoteke</button><button type="button" id="localFolderDisconnect">Odveži folder</button></div><input type="file" id="localFolderFallback" webkitdirectory multiple hidden><div id="localFolderFiles" class="local-folder-files"></div><button type="button" id="localFolderUpload">Uvezi izabrane datoteke</button><p id="localFolderStatus" role="status"></p>';
+ const progressBox=document.createElement('div');progressBox.id='localFolderProgressBox';progressBox.hidden=true;progressBox.innerHTML='<label for="localFolderProgress">Napredak uvoza: <strong id="localFolderPercent">0%</strong></label><progress id="localFolderProgress" max="100" value="0"></progress><p id="localFolderProgressStage" role="status"></p>';folderDialog.insertBefore(progressBox,folderDialog.querySelector('#localFolderStatus'));
  document.body.append(folderDialog);
  const folderButton=document.createElement('button');folderButton.type='button';folderButton.textContent='Lokalni folder';folderButton.id='projectLocalFolder';$('#projectForm').insertBefore(folderButton,$('#projectStatus'));
  const importDialog=document.createElement('dialog');importDialog.className='account-dialog';importDialog.id='externalImportDialog';
@@ -28,7 +29,7 @@
  folderButton.addEventListener('click',async()=>{
   if(!editingProject){$('#projectStatus').textContent='Najpre sačuvajte projekat, pa povežite folder.';return;}
   const p=workspace.projects.find(p=>p.id===editingProject);if(!p){$('#projectStatus').textContent='Za povezivanje vratite projekat iz arhive.';return;}
-  if(busy)return;const version=++folderVersion;folderContext={epoch,user:currentUser.id,project:editingProject};const ctx=folderContext;record=null;entries=[];drawEntries();$('#localFolderStatus').textContent='Veza se čuva samo u ovom pregledaču. Bez podrške za direktan pristup možete izabrati folder za uvoz.';folderDialog.showModal();
+  if(busy)return;const version=++folderVersion;folderContext={epoch,user:currentUser.id,project:editingProject};const ctx=folderContext;record=null;entries=[];$('#localFolderProgressBox').hidden=true;drawEntries();$('#localFolderStatus').textContent='Veza se čuva samo u ovom pregledaču. Bez podrške za direktan pristup možete izabrati folder za uvoz.';folderDialog.showModal();
   busy=true;folderControls();try{const saved=await storage(ctx);if(contextValid(ctx)&&version===folderVersion){record=saved||null;drawEntries();}}catch(e){if(contextValid(ctx))$('#localFolderStatus').textContent=e.message;}finally{busy=false;folderControls();}
  });
  $('#localFolderClose').addEventListener('click',()=>folderDialog.close());
@@ -41,17 +42,22 @@
  $('#localFolderFallback').addEventListener('change',event=>{const files=[...event.target.files];event.target.value='';if(!files.length)return;folderOperation(async ctx=>{await storage(ctx,undefined,true);if(!contextValid(ctx))return;record={name:files[0]?.webkitRelativePath.split('/')[0]||'Izabrani folder',uploads:{}};entries=files.slice(0,1000).filter(f=>supported.test(f.name)&&!f.webkitRelativePath.split('/').some(n=>n.startsWith('.')||n==='node_modules'||n==='AL-AI-rezultati')).map(file=>({path:file.webkitRelativePath,name:file.name,size:file.size,file}));drawEntries();$('#localFolderStatus').textContent='Izbor važi do zatvaranja stranice. Direktno čuvanje u folder zahteva Chrome/Edge sa podrškom za povezivanje.'+(files.length>1000?' Pregledano je prvih 1000 stavki.':'');});});
  $('#localFolderScan').addEventListener('click',()=>folderOperation(async ctx=>{if(!record?.handle)throw new Error('Ponovo izaberite folder za uvoz.');await permission(record.handle,'read');await scan(ctx);}));
  $('#localFolderDisconnect').addEventListener('click',()=>folderOperation(async ctx=>{await storage(ctx,undefined,true);if(!contextValid(ctx))return;record=null;entries=[];drawEntries();$('#localFolderStatus').textContent='Folder je odvezan. Uvezene kopije ostaju u Biblioteci.';}));
+ function uploadWithProgress(ctx,payload,onProgress){return new Promise((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.open('POST','/api/attachments/extract');xhr.setRequestHeader('Content-Type','application/json');xhr.setRequestHeader('X-CSRF-Token',csrfToken);xhr.timeout=180000;xhr.upload.onprogress=e=>{if(e.lengthComputable)onProgress(e.loaded/e.total);};xhr.upload.onload=()=>onProgress(1);xhr.onload=()=>{let data;try{data=JSON.parse(xhr.responseText);}catch{reject(new Error('Neispravan odgovor servera.'));return;}if(xhr.status>=200&&xhr.status<300)resolve(data);else{if(xhr.status===401&&contextValid(ctx))signedOut(data.error);reject(new Error(data.error||'Uvoz nije uspeo.'));}};xhr.onerror=()=>reject(new Error('Veza je prekinuta tokom uvoza.'));xhr.ontimeout=()=>reject(new Error('Uvoz traje predugo. Pokušajte ponovo.'));xhr.send(JSON.stringify(payload));});}
  $('#localFolderUpload').addEventListener('click',()=>folderOperation(async ctx=>{
   const selected=[...$('#localFolderFiles').querySelectorAll('input:checked')].map(box=>entries[Number(box.value)]);if(!selected.length)throw new Error('Izaberite datoteke za uvoz.');if(selected.length>20)throw new Error('Izaberite najviše 20 datoteka po uvozu.');
+  let index=0;function progress(part,stage){if(!contextValid(ctx))return;const percent=Math.min(100,Math.floor((index+part)/selected.length*100));$('#localFolderProgressBox').hidden=false;$('#localFolderProgress').value=percent;$('#localFolderPercent').textContent=percent+'%';$('#localFolderProgressStage').textContent=stage;}
+  progress(0,'Priprema uvoza…');$('#localFolderStatus').textContent='';
   const existing=new Set((await api('/api/files')).files.filter(f=>f.project_id===ctx.project).map(f=>f.id));let imported=0,skipped=0;const errors=[];
   for(const entry of selected){if(!contextValid(ctx))return;try{
-   const f=entry.file||await entry.handle.getFile();validateAttachmentSize(f);if(!f.size)throw new Error('Datoteka je prazna.');const bytes=await f.arrayBuffer();if(!contextValid(ctx))return;
+   progress(0,'Čitanje: '+entry.path);const f=entry.file||await entry.handle.getFile();validateAttachmentSize(f);if(!f.size)throw new Error('Datoteka je prazna.');
+   const bytes=await new Promise((resolve,reject)=>{const r=new FileReader();r.onprogress=e=>{if(e.lengthComputable)progress(e.loaded/e.total*.4,'Čitanje: '+entry.path);};r.onload=()=>resolve(r.result);r.onerror=()=>reject(new Error('Datoteka nije pročitana.'));r.readAsArrayBuffer(f);});if(!contextValid(ctx))return;progress(.4,'Provera datoteke: '+entry.path);
    const digest=[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(n=>n.toString(16).padStart(2,'0')).join('');const fingerprint=entry.path+':'+digest;
-   if(existing.has(record.uploads[fingerprint])){skipped++;continue;}
-   const content=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result.split(',')[1]);r.onerror=()=>reject(new Error('Datoteka nije pročitana.'));r.readAsDataURL(new Blob([bytes]));});if(!contextValid(ctx))return;
-   const result=await api('/api/attachments/extract','POST',{name:entry.name,content,projectId:ctx.project});if(!contextValid(ctx))return;record.uploads[fingerprint]=result.fileId;imported++;if(record.handle)await storage(ctx,record);
-  }catch(e){errors.push(entry.path+': '+e.message);}}
-  if(!contextValid(ctx))return;$('#localFolderStatus').textContent='Uvezeno: '+imported+'. Već uvezeno: '+skipped+'. '+errors.join(' · ');await refreshWorkFiles();
+   if(existing.has(record.uploads[fingerprint])){skipped++;}else{
+    const content=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result.split(',')[1]);r.onerror=()=>reject(new Error('Datoteka nije pročitana.'));r.readAsDataURL(new Blob([bytes]));});if(!contextValid(ctx))return;
+    const result=await uploadWithProgress(ctx,{name:entry.name,content,projectId:ctx.project},fraction=>progress(.4+fraction*.5,fraction===1?'Obrada na serveru: '+entry.path:'Slanje: '+entry.path));if(!contextValid(ctx))return;record.uploads[fingerprint]=result.fileId;imported++;if(record.handle)await storage(ctx,record);
+   }
+  }catch(e){errors.push(entry.path+': '+e.message);}index++;progress(0,'Obrađene datoteke: '+index+'/'+selected.length);}
+  if(!contextValid(ctx))return;progress(0,errors.length?'Uvoz završen uz greške.':'Uvoz završen.');$('#localFolderStatus').textContent='Uvezeno: '+imported+'. Već uvezeno: '+skipped+'. '+errors.join(' · ');await refreshWorkFiles();
  }));
  const outputWrites=new Set();
  window.saveWorkToLocalFolder=async(fileId,projectId)=>{
@@ -85,6 +91,6 @@
  });
  // Remove references and close file views as soon as an account changes.
  let visibleUser=currentUser?.id;
- const accountObserver=new MutationObserver(()=>{if(visibleUser!==currentUser?.id){visibleUser=currentUser?.id;folderVersion++;importVersion++;folderContext=null;record=null;entries=[];importText='';$('#externalImportPreview').replaceChildren();$('#externalImportFile').value='';$('#externalImportSave').disabled=true;drawEntries();folderDialog.close();importDialog.close();}});
+ const accountObserver=new MutationObserver(()=>{if(visibleUser!==currentUser?.id){visibleUser=currentUser?.id;folderVersion++;importVersion++;folderContext=null;record=null;entries=[];importText='';$('#localFolderProgressBox').hidden=true;$('#externalImportPreview').replaceChildren();$('#externalImportFile').value='';$('#externalImportSave').disabled=true;drawEntries();folderDialog.close();importDialog.close();}});
  accountObserver.observe(document.body,{attributes:true,subtree:true,attributeFilter:['hidden']});
 })();
