@@ -16,7 +16,7 @@ Work može koristiti do pet izabranih datoteka kao ranije. Za indeksirane PDF-ov
 
 - PDF: do 30.000.000 bajtova, 1500 PDF stranica i 5 miliona izdvojenih znakova po datoteci.
 - Indeksi PDF-ova: do 20 miliona znakova po nalogu. Originali i dalje dele postojeći prostor Biblioteke (100 datoteka / 100 MB).
-- Do dva paralelna procesa izdvajanja priloga; izdvajanje PDF-a traje najviše 120 sekundi. Memorija radnog procesa ostaje ograničena.
+- Do dva paralelna procesa izdvajanja priloga; izdvajanje PDF-a traje najviše 300 sekundi. Memorija radnog procesa ostaje ograničena.
 - Drugi formati zadržavaju 3 MB i postojeći limit izdvojenog teksta 40.000 znakova.
 - Za pitanje se bira do osam odlomaka, ukupno do 22.000 znakova. Ne šalje se ceo indeks. Model dobija i postojeći ograničeni kontekst razgovora.
 - Skenirani PDF se može sačuvati, ali prazne/slikovne stranice nemaju tekst za pretragu. Za njih je potreban OCR, koji nije uključen. Delimično čitljiv dokument prikazuje broj čitljivih stranica; sažetak obuhvata samo njihov tekst.
@@ -33,3 +33,5 @@ Kod više datoteka svaka ima jednak deo ukupne trake, a za kraj se računa i zav
 Uključite `books.js`, `books-ui.js`, `migrations/014_pdf_books.sql` i izmenjene postojeće module. Migracija se automatski primenjuje pri startu. Ne uvode se nove spoljne usluge niti zavisnosti. Stari PDF-ovi se indeksiraju tek kada korisnik izabere pripremu za čitanje; migracija ne obrađuje njihove originale.
 
 Provere: `npm run check`, `npm run test:books`, `npm run test:second-package-ui`, `npm run test:workspace`, `npm run test:pdf-limit` i postojeći testovi priloga. Probna knjiga ima 305 programatski napravljenih stranica. Testovi koriste PGlite i simulirane odgovore modela; potvrđuju tok, pokrivenost izvornim delovima, privatnost i nastavak, a ne kvalitet sažetka stvarne knjige ili ponašanje objavljene aplikacije.
+
+Za aktuelni uvoz na hostingu, sačuvane poslove, migraciju 015 i desni diskovni eksplorer pogledajte EXPLORER-IMPORT.md.

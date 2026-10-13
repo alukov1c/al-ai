@@ -2,6 +2,7 @@ const {mergeMemories,mergeProfileMemories,parseMemoryImport,parseProfileDocument
 const {recordActivity,activitySummary,activityStreaks}=require('./activity');
 const {workspaceApi,ownProject,pluginAllowed,recordUsage,clearImageReferences}=require('./workspace');
 const {importConversations}=require('./conversation-import');
+const {PdfImportQueue,pdfImportsApi}=require('./pdf-imports');
 const {indexBook,searchBook,sourceContext,booksApi}=require('./books');
 const {previewFile}=require('./file-preview');
 const {saveFile,mimeTypes} = require('./files');
@@ -44,6 +45,8 @@ const publicFiles = new Map([
   ['/accounts.css', ['accounts.css', 'text/css; charset=utf-8']],
   ['/math-format.js', ['math-format.js','text/javascript; charset=utf-8']],
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
+  ['/explorer.js', ['explorer.js', 'text/javascript; charset=utf-8']],
+  ['/pdf-import-client.js', ['pdf-import-client.js', 'text/javascript; charset=utf-8']],
   ['/books-ui.js', ['books-ui.js', 'text/javascript; charset=utf-8']],
   ['/local-folder.js', ['local-folder.js', 'text/javascript; charset=utf-8']],
   ['/AL-AI.svg', ['AL-AI.svg', 'image/svg+xml']]
@@ -237,7 +240,8 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
     }
   }
 
-  return http.createServer(async (request, response) => {
+  const pdfQueue=new PdfImportQueue(pool);
+  const server=http.createServer(async (request, response) => {
     response.setHeader('X-Content-Type-Options', 'nosniff');
     response.setHeader('Referrer-Policy', 'same-origin');
     response.setHeader('X-Frame-Options', 'DENY');
@@ -263,7 +267,7 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
         if (request.headers.origin !== appOrigin) throw new HttpError(403, 'Zahtev mora poticati iz ove aplikacije.');
         if (!(request.headers['content-type'] || '').startsWith('application/json')) throw new HttpError(415, 'Očekuje se JSON zahtev.');
       }
-      const data = write ? await readJson(request,pathname==='/api/attachments/extract'?41_000_000:5_000_000) : {};
+      const data = write ? await readJson(request,['/api/attachments/extract','/api/pdf-imports'].includes(pathname)?41_000_000:5_000_000) : {};
       if (pathname.startsWith('/api/google/')) return sendJson(response, 200, await googleAuth(pathname, request, response, data));
       if (pathname === '/api/login' && request.method === 'POST') {
         const name = username(data.username);
@@ -311,6 +315,7 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
         return sendJson(response, 200, { ok: true });
       }
       if (user.must_change_password) throw new HttpError(403, 'Pre nastavka promenite početnu lozinku.');
+      if(await pdfImportsApi({pool,user,data,pathname,method:request.method,queue:pdfQueue,send:body=>sendJson(response,200,body)}))return;
       const bookIndexRoute=pathname.match(/^\/api\/books\/([0-9a-f-]+)\/index$/i);
       if(bookIndexRoute&&request.method==='POST'){
         await pluginAllowed(pool,user.id,'pdf');await limitLogin(pool,'attachment:'+user.id,20);
@@ -397,7 +402,7 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
         return sendJson(response,200,{ok:true});
       }
       if (pathname === '/api/files' && request.method === 'GET') {
-        const files=await pool.query('SELECT f.id,f.name,f.kind,f.direction,f.mime,f.created_at,f.conversation_id,f.project_id,c.title,d.pages AS book_pages,d.characters AS book_characters,octet_length(f.content) AS bytes FROM user_files f LEFT JOIN conversations c ON c.id=f.conversation_id LEFT JOIN pdf_documents d ON d.file_id=f.id WHERE f.user_id=$1 ORDER BY f.created_at DESC',[user.id]);
+        const files=await pool.query('SELECT f.id,f.name,f.kind,f.direction,f.mime,f.created_at,f.conversation_id,f.project_id,c.title,d.pages AS book_pages,d.characters AS book_characters,j.id AS pdf_import_id,j.status AS pdf_import_status,j.stage AS pdf_import_stage,octet_length(f.content) AS bytes FROM user_files f LEFT JOIN conversations c ON c.id=f.conversation_id LEFT JOIN pdf_documents d ON d.file_id=f.id LEFT JOIN pdf_import_jobs j ON j.file_id=f.id WHERE f.user_id=$1 ORDER BY f.created_at DESC',[user.id]);
         return sendJson(response,200,{files:files.rows});
       }
       const previewRoute=pathname.match(/^\/api\/files\/([0-9a-f-]+)\/preview$/i);
@@ -614,14 +619,20 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
       if (!response.headersSent && !response.destroyed) sendJson(response, error.status || 500, { error: error instanceof HttpError ? error.message : 'Server trenutno ne može da obradi zahtev. Pokušajte ponovo.' });
     }
   });
+  server.on('listening',()=>pdfQueue.start());server.on('close',()=>pdfQueue.stop());return server;
 }
 
 async function main() {
   require('./config').loadEnvironment();
   const pool = createPool();
+  let startupStage='povezivanje sa PostgreSQL bazom';
   try {
+    await pool.query('SELECT 1');
+    startupStage='primena migracija baze';
     await migrate(pool);
+    startupStage='priprema administratorskog naloga';
     await bootstrapAdmin(pool);
+    startupStage='pokretanje web servera';
     const port = Number(process.env.PORT) || 3000;
     const origin = new URL(process.env.APP_ORIGIN || process.env.RENDER_EXTERNAL_URL || 'http://localhost:' + port).origin;
     if ((process.env.RENDER || process.env.NODE_ENV === 'production') && !origin.startsWith('https://')) {
@@ -635,7 +646,11 @@ async function main() {
     process.on('SIGTERM', close);
     process.on('SIGINT', close);
   } catch (error) {
-    console.error('Pokretanje nije uspelo:', error.code || (error instanceof HttpError ? error.message : (error.message.includes('podesiti') || error.message.includes('Podesiti') ? error.message : 'Proveriti konfiguraciju baze i administratora.')));
+    console.error('Pokretanje nije uspelo ('+startupStage+'):', error.code || (error instanceof HttpError ? error.message : (error.message.includes('podesiti') || error.message.includes('Podesiti') ? error.message : 'Proveriti konfiguraciju baze i administratora.')));
+    if(['ETIMEDOUT','ECONNREFUSED','EHOSTUNREACH','ENOTFOUND'].includes(error.code)||/timeout|timed out/i.test(error.message||'')){
+      const databaseUrl=new URL(process.env.DATABASE_URL);
+      console.error('Baza nije dostupna: '+databaseUrl.hostname+':'+(databaseUrl.port||'5432')+'. Proverite stanje baze, pristup mrezi i Render Access Control. Za lokalno pokretanje koristi se External Database URL; za Render servis u istoj regiji Internal Database URL.');
+    }
     await pool.end();
     process.exitCode = 1;
   }

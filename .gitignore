@@ -83,3 +83,9 @@ RENDER-POKRETANJE.md
 !books.js
 !books-ui.js
 !test/books.test.js
+
+!pdf-imports.js
+!explorer.js
+!test/import-explorer.test.js
+
+!pdf-import-client.js

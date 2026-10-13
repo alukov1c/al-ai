@@ -16,8 +16,9 @@ async function indexBook(pool,fileId,userId,pages){
   if(used+characters>20000000)throw new HttpError(413,'Indeks PDF knjiga je popunjen (20 miliona znakova po nalogu).');
   await db.query('DELETE FROM pdf_documents WHERE file_id=$1',[fileId]);
   await db.query('INSERT INTO pdf_documents(file_id,pages,readable_pages,characters) VALUES($1,$2,$3,$4)',[fileId,pages.length,readable,characters]);
-  let position=0;
-  for(const page of pages){for(let start=0;start<page.text.length;start+=3200){const content=page.text.slice(start,start+3500);await db.query("INSERT INTO pdf_chunks(file_id,page,position,content,search) VALUES($1,$2,$3,$4,to_tsvector('simple',$4))",[fileId,page.num,position++,content]);}}
+  let position=0,batch=[];
+  async function flush(){if(!batch.length)return;await db.query("INSERT INTO pdf_chunks(file_id,page,position,content,search) SELECT $1,c.page,c.position,c.content,to_tsvector('simple',c.content) FROM jsonb_to_recordset($2::jsonb) AS c(page integer,position integer,content text)",[fileId,JSON.stringify(batch)]);batch=[];}
+  for(const page of pages){for(let start=0;start<page.text.length;start+=3200){batch.push({page:page.num,position:position++,content:page.text.slice(start,start+3500)});if(batch.length===100)await flush();}}await flush();
  });return {pages:pages.length,readablePages:readable,characters};
 }
 async function searchBook(db,fileId,userId,query){

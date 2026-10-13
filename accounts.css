@@ -7,11 +7,11 @@
 .account-form label { display:grid; gap:6px; font-size:13px; }
 .account-form input { width:100%; padding:11px; border:1px solid var(--line); border-radius:9px; background:white; color:var(--text); font:inherit; }
 .account-form input:focus { outline:2px solid rgba(37,99,235,.4); outline-offset:2px; }
-.account-form button, .account-dialog button, .account-controls button, #moreHistory, #retryButton {
+.account-form button, .account-dialog button, .account-controls button, #moreHistory, #retryButton, .al-explorer .folder-toolbar button, .al-explorer .explorer-heading button {
   padding:9px 12px; border:1px solid var(--line); border-radius:9px; background:#fff; color:#1d4ed8; cursor:pointer; font:inherit;
 }
 .account-form button[type=submit] { background:var(--blue); color:white; }
-.account-form button:disabled, .account-dialog button:disabled { opacity:.5; cursor:wait; }
+.account-form button:disabled, .account-dialog button:disabled, .al-explorer .folder-toolbar button:disabled, .al-explorer .explorer-heading button:disabled { opacity:.5; cursor:wait; }
 .form-message { min-height:20px; font-size:13px; overflow-wrap:anywhere; }
 .account-controls { display:flex; flex-wrap:wrap; gap:6px; padding:10px 0; border-top:1px solid var(--line); }
 .account-controls strong { flex:0 0 100%; font-size:12px; overflow-wrap:anywhere; }
@@ -48,3 +48,6 @@
 #memoryList li { display:flex; align-items:start; justify-content:space-between; gap:12px; padding:12px 0; border-bottom:1px solid #dbe5ed; }
 #memoryList span { overflow-wrap:anywhere; min-width:0; white-space:pre-wrap; }
 #memoryList button { flex-shrink:0; }
+
+.al-explorer .folder-toolbar button:hover:not(:disabled),.al-explorer .explorer-heading button:hover:not(:disabled){background:#edf3ff;border-color:#cbd7eb}
+.al-explorer .folder-toolbar button:focus-visible,.al-explorer .explorer-heading button:focus-visible{outline:2px solid rgba(37,99,235,.4);outline-offset:2px}
