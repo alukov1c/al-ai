@@ -8,22 +8,55 @@
  dialog.addEventListener('close',()=>{if(choosing){const done=choosing;choosing=null;done(dialog.returnValue==='read'?$('#projectPdfSelect').value:null);}});
  new MutationObserver(()=>{if(choosing&&choosing.user!==currentUser?.id)dialog.close();}).observe(document.body,{attributes:true,subtree:true,attributeFilter:['hidden']});
  function repairText(text){
-  return text.normalize('NFC').replace(/([dD])[\u0335\u0336]/g,(_,d)=>d==='D'?'Đ':'đ').replace(/([´ˊ])\s*([cC])/g,(_,a,c)=>c==='C'?'Ć':'ć').replace(/([ˇ̌])\s*([cCsSzZ])/g,(_,a,c)=>({'c':'č','C':'Č','s':'š','S':'Š','z':'ž','Z':'Ž'}[c])).replace(/([cC])\s*[´ˊ]/g,(_,c)=>c==='C'?'Ć':'ć').replace(/([cCsSzZ])\s*ˇ/g,(_,c)=>({'c':'č','C':'Č','s':'š','S':'Š','z':'ž','Z':'Ž'}[c]));
+  const caron={c:'č',C:'Č',s:'š',S:'Š',z:'ž',Z:'Ž'};
+  return text.normalize('NFC')
+   .replace(/([cC])[ \t]+\u0301/g,(_,c)=>c==='C'?'Ć':'ć')
+   .replace(/([cCsSzZ])[ \t]+\u030c/g,(_,c)=>caron[c])
+   // PDF fonts may emit an accent before its base letter, or as a separate glyph.
+   .replace(/[´ˊ\u0301][ \t]*([cC])/g,(_,c)=>c==='C'?'Ć':'ć')
+   .replace(/([cC])[ \t]*[´ˊ\u0301]/g,(_,c)=>c==='C'?'Ć':'ć')
+   .replace(/[ˇ\u030c][ \t]*([cCsSzZ])/g,(_,c)=>caron[c])
+   .replace(/([cCsSzZ])[ \t]*[ˇ\u030c]/g,(_,c)=>caron[c])
+   .replace(/([dD])[ \t]*[\u0335\u0336]/g,(_,d)=>d==='D'?'Đ':'đ')
+   .replace(/[\u0335\u0336][ \t]*([dD])/g,(_,d)=>d==='D'?'Đ':'đ')
+   .normalize('NFC')
+   .replace(/(\d)[ \t\u00a0]+(?=(?:km|cm|mm|nm|µm|μm|m|kg|mg|g|ms|µs|μs|s|min|h|Hz|kHz|MHz|N|kN|Pa|kPa|MPa|J|kJ|W|kW|V|mV|A|mA|K|°C|rad|mol)(?![\p{L}]))/gu,'$1\u00a0');
+ }
+ function mathText(text){
+  const symbols={'−':'-','×':String.raw`\times `,'·':String.raw`\cdot `,'÷':String.raw`\div `,'≤':String.raw`\le `,'≥':String.raw`\ge `,'π':String.raw`\pi `,'α':String.raw`\alpha `,'β':String.raw`\beta `,'ω':String.raw`\omega `,'Δ':String.raw`\Delta `,'²':'^{2}','³':'^{3}'};
+  return text.replace(/[−×·÷≤≥παβωΔ²³]/g,c=>symbols[c]);
+ }
+ function formatMath(text){
+  return text.split(/(\$\$[\s\S]*?\$\$|\$[^$\n]+\$|\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\])/g).map((part,i)=>{
+   if(i%2)return part;
+   const formula=String.raw`(?:[A-Za-zα-ωΑ-Ω](?:[_^](?:\{[^{}]+\}|[\w]+))?|[-+]?\d+(?:[.,]\d+)?)(?:[²³])?`;
+   const expression=new RegExp(String.raw`(?<![\p{L}\d])${formula}(?:\s*[=+*/^<>≤≥×÷−-]\s*${formula})+(?![\p{L}\d])`,'gu');
+   return part.split(new RegExp('('+expression.source+')','gu')).map((piece,index)=>index%2?'\\('+mathText(piece)+'\\)':piece.replace(/(?<![\p{L}\d])[-+]?\d+(?:[.,]\d+)?(?![\p{L}\d])/gu,String.raw`\($&\)`)).join('');
+  }).join('');
  }
  function renderExtract(target,source){
   target.replaceChildren();
-  const lines=source.split('\n');let table=null;
-  for(let line of lines){
-   if(!/[$\\]/.test(line)&&/[=<>≤≥]/.test(line)&&/^[\s\dA-Za-zα-ωΑ-Ω=<>≤≥+*/^_().,{}−-]+$/u.test(line)&&line.trim().split(/\s+/).every(w=>!/[A-Za-z]{4,}/.test(w)))line='\\('+line+'\\)';
-   const cells=line.includes(' | ')?line.split(/\s*\|\s*/).filter(Boolean):line.trim().split(/\t+| {3,}/);
-   if(cells.length>1){if(!table){table=document.createElement('table');target.append(table);}const row=table.insertRow();for(const cell of cells)row.insertCell().textContent=cell;continue;}table=null;
-   const paragraph=document.createElement('p');
-   // Preserve explicit LaTeX; typeset isolated numbers without guessing missing formulas.
-   const parts=line.split(/(\$\$[\s\S]*?\$\$|\$[^$]+\$|\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\])/g);
-   const formatted=parts.map((part,i)=>i%2?part:part.replace(/(?<![\p{L}\d])[-+]?\d+(?:[.,]\d+)?(?![\p{L}\d])/gu,'\\($&\\)')).join('');
-   const tokens=formatted.split(/(\*\*[^*]+\*\*|\*[^*]+\*|~~[^~]+~~|<u>[^<]+<\/u>)/g);
-   for(const token of tokens){let tag=null,value=token;if(token.startsWith('**')&&token.endsWith('**')){tag='strong';value=token.slice(2,-2);}else if(token.startsWith('*')&&token.endsWith('*')){tag='em';value=token.slice(1,-1);}else if(token.startsWith('~~')&&token.endsWith('~~')){tag='s';value=token.slice(2,-2);}else if(token.startsWith('<u>')&&token.endsWith('</u>')){tag='u';value=token.slice(3,-4);}const node=tag?document.createElement(tag):document.createTextNode(value);if(tag)node.textContent=value;paragraph.append(node);}target.append(paragraph);
+  function inline(parent,text){
+   // Keep math as a single token so multiplication cannot become Markdown italics.
+   const tokens=formatMath(text).split(/(\$\$[\s\S]*?\$\$|\$[^$]+\$|\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\]|\*\*[^*]+\*\*|\*[^*]+\*|~~[^~]+~~|<u>[^<]+<\/u>)/g);
+   for(const token of tokens){let tag=null,value=token;if(token.startsWith('**')&&token.endsWith('**')){tag='strong';value=token.slice(2,-2);}else if(token.startsWith('*')&&token.endsWith('*')){tag='em';value=token.slice(1,-1);}else if(token.startsWith('~~')&&token.endsWith('~~')){tag='s';value=token.slice(2,-2);}else if(token.startsWith('<u>')&&token.endsWith('</u>')){tag='u';value=token.slice(3,-4);}const node=tag?document.createElement(tag):document.createTextNode(value);if(tag)node.textContent=value;parent.append(node);}
   }
+  const lines=source.split('\n');let paragraph=[],rows=[];
+  function flushParagraph(){if(!paragraph.length)return;const p=document.createElement('p');inline(p,paragraph.join(' '));target.append(p);paragraph=[];}
+  function flushTable(){if(!rows.length)return;const wrapper=document.createElement('div');wrapper.className='local-extract-table';target.append(wrapper);
+   const escape=text=>text.replace(/[\\{}%$&#_^~]/g,c=>({'\\':String.raw`\backslash `,'{':String.raw`\{`,'}':String.raw`\}`,'%':String.raw`\%`,'$':String.raw`\$`,'&':String.raw`\&`,'#':String.raw`\#`,'_':String.raw`\_`,'^':String.raw`\textasciicircum `,'~':String.raw`\textasciitilde `}[c]));
+   const cell=text=>/^[-+]?\d+(?:[.,]\d+)?$/.test(text.trim())?text.trim():String.raw`\text{`+escape(text)+'}';
+   const columns=Math.max(...rows.map(row=>row.length));const tex=String.raw`\begin{array}{`+'c'.repeat(columns)+'}'+rows.map(row=>Array.from({length:columns},(_,i)=>cell(row[i]||'')).join(' & ')).join(String.raw` \\ `)+String.raw`\end{array}`;
+   if(window.katex){try{window.katex.render(tex,wrapper,{displayMode:true,throwOnError:true,trust:false,maxExpand:200,maxSize:20});}catch{wrapper.textContent=rows.map(r=>r.join(' | ')).join('\n');}}
+   else{const table=document.createElement('table');for(const cells of rows){const row=table.insertRow();for(const value of cells)inline(row.insertCell(),value);}wrapper.append(table);}rows=[];
+  }
+  for(const line of lines){
+   const cells=line.includes(' | ')?line.split(/\s*\|\s*/).filter(Boolean):line.trim().split(/\t+| {3,}/);
+   if(cells.length>1){flushParagraph();rows.push(cells);continue;}flushTable();
+   if(!line.trim()){flushParagraph();continue;}
+   if(/^(?:\$\$|\\\[)/.test(line.trim())){flushParagraph();const block=document.createElement('div');block.textContent=line;target.append(block);}else paragraph.push(line.trim());
+  }
+  flushParagraph();flushTable();
   window.renderMathInElement?.(target,{delimiters:[{left:'$$',right:'$$',display:true},{left:'\\[',right:'\\]',display:true},{left:'\\(',right:'\\)',display:false},{left:'$',right:'$',display:false}],throwOnError:false,trust:false,strict:'ignore',maxExpand:200,maxSize:20});
  }
  const fold=s=>s.normalize('NFKC').toLowerCase();
@@ -59,7 +92,7 @@
     if(!valid())throw new Error('Sesija je promenjena.');
     onStage?.('Lokalna pretraga: '+n+' / '+doc.numPages);
     const page=await doc.getPage(n),items=(await page.getTextContent()).items;
-    const text=repairText(items.map(i=>i.str+(i.hasEOL?'\n':' ')).join(''));page.cleanup();if(text.trim())readable++;
+    const text=repairText(items.map((item,index)=>{const next=items[index+1],end=(item.transform?.[4]||0)+(item.width||0),gap=next?.transform?.[4]-end;return item.str+(item.hasEOL?'\n':gap>Math.max(12,(item.height||10)*1.5)?'\t':' ');}).join(''));page.cleanup();if(text.trim())readable++;
     const found=refs.filter(ref=>{const [a,b]=ref.split('.');return new RegExp('(^|[^0-9])'+a+'\\s*[.,]\\s*'+b+'(?![0-9])').test(text);});
     if(found.length)hits.push({page:n,text,refs:found});
    }
