@@ -107,3 +107,6 @@ Desktop.ini
 !test/project-conversation-ui.test.js
 
 !test/pdf-binary-upload.test.js
+
+# Lokalni snimak pregleda dokumenta
+/2026-10-23 15_24_32-Greenshot.png
