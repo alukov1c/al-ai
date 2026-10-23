@@ -54,17 +54,20 @@
   }
   const lines=prepareExtract(source).split('\n');let paragraph=[],rows=[];
   function flushParagraph(){if(!paragraph.length)return;const p=document.createElement('p');inline(p,paragraph.join(' '));target.append(p);paragraph=[];}
-  function flushTable(){if(!rows.length)return;const wrapper=document.createElement('div');wrapper.className='local-extract-table';target.append(wrapper);
+  function flushTable(){if(!rows.length)return;
+   const numeric=row=>row.every(cell=>/^[-+]?\d+(?:[.,]\d+)?(?:\s*[a-zA-Z%]+)?$/.test(cell.trim()));
+   if(rows.length<2||!rows.some(numeric)){for(const row of rows)paragraph.push(row.join(' '));rows=[];return;}
+   const wrapper=document.createElement('div');wrapper.className='local-extract-table';target.append(wrapper);
    const escape=text=>text.replace(/[\\{}%$&#_^~]/g,c=>({'\\':String.raw`\backslash `,'{':String.raw`\{`,'}':String.raw`\}`,'%':String.raw`\%`,'$':String.raw`\$`,'&':String.raw`\&`,'#':String.raw`\#`,'_':String.raw`\_`,'^':String.raw`\textasciicircum `,'~':String.raw`\textasciitilde `}[c]));
    const cell=text=>/^[-+]?\d+(?:[.,]\d+)?$/.test(text.trim())?text.trim():String.raw`\text{`+escape(text)+'}';
-   const columns=Math.max(...rows.map(row=>row.length));const tex=String.raw`\begin{array}{`+'c'.repeat(columns)+'}'+rows.map(row=>Array.from({length:columns},(_,i)=>cell(row[i]||'')).join(' & ')).join(String.raw` \\ `)+String.raw`\end{array}`;
-   wrapper.dataset.latex=tex;
-   if(window.katex){try{window.katex.render(tex,wrapper,{displayMode:true,throwOnError:true,trust:false,maxExpand:200,maxSize:20});}catch{wrapper.textContent=rows.map(r=>r.join(' | ')).join('\n');}}
-   else{const table=document.createElement('table');for(const cells of rows){const row=table.insertRow();for(const value of cells)inline(row.insertCell(),value);}wrapper.append(table);}rows=[];
+   const columns=Math.max(...rows.map(row=>row.length));
+   wrapper.dataset.latex=String.raw`\begin{array}{|`+Array(columns).fill('c').join('|')+String.raw`|}\hline `+rows.map(row=>Array.from({length:columns},(_,i)=>cell(row[i]||'')).join(' & ')).join(String.raw` \\ \hline `)+String.raw` \\ \hline\end{array}`;
+   const table=document.createElement('table');for(const values of rows){const row=table.insertRow();for(let i=0;i<columns;i++)inline(row.insertCell(),values[i]||'');}wrapper.append(table);rows=[];
   }
   for(const line of lines){
    const cells=line.includes(' | ')?line.split(/\s*\|\s*/).filter(Boolean):line.trim().split(/\t+| {3,}/);
-   if(cells.length>1){flushParagraph();rows.push(cells);continue;}flushTable();
+   const tabular=cells.length>1&&cells.every(cell=>cell.length<=45&&cell.trim().split(/\s+/).length<=4)&&!/^\s*\d+[.,]\d+\s/.test(line)&&cells.every(cell=>!/[?!;]/.test(cell));
+   if(tabular){flushParagraph();rows.push(cells);continue;}flushTable();
    if(!line.trim()){flushParagraph();continue;}
    if(/^(?:\$\$|\\\[)/.test(line.trim())){flushParagraph();const block=document.createElement('div');block.textContent=line;target.append(block);}else paragraph.push(line.trim());
   }
@@ -135,9 +138,11 @@
   const transfer=button(bottom,'Tekst → Prompt','↗',()=>{if(editing||!valid())return;const field=$('#promptInput');const extracted=sections.map(item=>'[PDF stranica '+item.hit.page+']\n'+repairText([...item.body.childNodes].map(serialize).join('').trim())).join('\n\n');const value='Izdvojeni tekst iz '+file.name+':\n\n'+extracted;field.value=value;window.localPdfPrompt=value;field.dispatchEvent(new Event('input',{bubbles:true}));minimized=false;result.close();field.focus();onStage?.('Tekst je prenet u prompt. Dopunite zahtev i kliknite Pošalji.');});transfer.disabled=!sections.length;
   button(bottom,'Prikaži originalni PDF','▤',async()=>{minimized=false;result.close();try{await window.localPdfViewer.open(handle,{user,project:snapshot.projectId},valid);}catch(e){onStage?.(e.message);}});
   result.append(heading,top,content,bottom);document.body.append(result);draw();
+  const fitMath=()=>{for(const item of sections)for(const node of item.body.querySelectorAll('.katex')){node.style.fontSize='';const available=Math.max(1,item.body.clientWidth-32),width=node.getBoundingClientRect().width;if(width>available)node.style.fontSize=(parseFloat(getComputedStyle(node).fontSize)*available/width)+'px';}};
+  const fitObserver=new ResizeObserver(()=>requestAnimationFrame(fitMath));fitObserver.observe(content);
   const cleanup=new MutationObserver(()=>{if(!valid())dispose();});cleanup.observe(document.body,{attributes:true,subtree:true,attributeFilter:['hidden']});
-  function dispose(){cleanup.disconnect();dock.remove();result.remove();}
-  result.addEventListener('close',()=>{if(!minimized)dispose();});result.showModal();
+  function dispose(){fitObserver.disconnect();cleanup.disconnect();dock.remove();result.remove();}
+  result.addEventListener('close',()=>{if(!minimized)dispose();});result.showModal();requestAnimationFrame(fitMath);
   return {localOnly:true};
  };
 })();
