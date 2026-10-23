@@ -1025,6 +1025,23 @@ async function openFilePreview(file,page=1){
   if(file.kind==='image'){
    const img=$('#filePreviewImage');img.onload=()=>{if(version===previewVersion)$('#filePreviewStatus').textContent='';};img.onerror=()=>{if(version===previewVersion)$('#filePreviewStatus').textContent='Slika nije dostupna.';};img.alt=file.name;img.src='/api/files/'+file.id;img.hidden=false;return;
   }
+  if(/\.(pdf|docx)$/i.test(file.name)){
+   const response=await fetch('/api/files/'+file.id);
+   if(!response.ok)throw new Error('Dokument nije dostupan.');
+   const blob=await response.blob();
+   if(version!==previewVersion||session!==epoch||!dialog.open)return;
+   if(/\.pdf$/i.test(file.name)){
+    dialog.close();
+    const handle={name:file.name,libraryId:file.id,isSameEntry:async other=>other.libraryId===file.id,getFile:async()=>new File([blob],file.name,{type:'application/pdf'})};
+    await window.localPdfViewer.open(handle,{user:session,project:session},()=>epoch===session);
+   }else{
+    const result=await mammoth.extractRawText({arrayBuffer:await blob.arrayBuffer()});
+    if(version!==previewVersion||session!==epoch||!dialog.open)return;
+    $('#filePreviewText').textContent=result.value;$('#filePreviewText').hidden=false;
+    $('#filePreviewStatus').textContent='Tekstualni pregled u pregledaču; raspored i slike nisu prikazani.';
+   }
+   return;
+  }
   const result=await api('/api/files/'+file.id+'/preview?page='+page);
   if(version!==previewVersion||session!==epoch||!dialog.open)return;
   if(result.kind==='pdf'){

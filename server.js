@@ -56,6 +56,7 @@ const publicFiles = new Map([
   ['/local-folder.js', ['local-folder.js', 'text/javascript; charset=utf-8']],
   ['/AL-AI.svg', ['AL-AI.svg', 'image/svg+xml']]
 ]);
+publicFiles.set('/vendor/mammoth.browser.min.js',[require.resolve('mammoth/mammoth.browser.min.js'),'text/javascript; charset=utf-8']);
 const pdfjsRoot=path.dirname(require.resolve('pdfjs-dist/package.json'));
 for(const name of ['pdf.mjs','pdf.worker.mjs'])publicFiles.set('/vendor/pdfjs/'+name,[path.join(pdfjsRoot,'build',name),'text/javascript; charset=utf-8']);
 for(const dir of ['cmaps','standard_fonts','wasm'])for(const name of fs.readdirSync(path.join(pdfjsRoot,dir)).filter(n=>/\.(bcmap|ttf|pfb|wasm)$/.test(n)))publicFiles.set('/vendor/pdfjs/'+dir+'/'+name,[path.join(pdfjsRoot,dir,name),name.endsWith('.wasm')?'application/wasm':'application/octet-stream']);
