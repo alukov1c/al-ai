@@ -7,8 +7,28 @@
  $('#projectPdfRead').addEventListener('click',()=>dialog.close('read'));
  dialog.addEventListener('close',()=>{if(choosing){const done=choosing;choosing=null;done(dialog.returnValue==='read'?$('#projectPdfSelect').value:null);}});
  new MutationObserver(()=>{if(choosing&&choosing.user!==currentUser?.id)dialog.close();}).observe(document.body,{attributes:true,subtree:true,attributeFilter:['hidden']});
+ function repairText(text){
+  return text.normalize('NFC').replace(/([dD])[\u0335\u0336]/g,(_,d)=>d==='D'?'Đ':'đ').replace(/([´ˊ])\s*([cC])/g,(_,a,c)=>c==='C'?'Ć':'ć').replace(/([ˇ̌])\s*([cCsSzZ])/g,(_,a,c)=>({'c':'č','C':'Č','s':'š','S':'Š','z':'ž','Z':'Ž'}[c])).replace(/([cC])\s*[´ˊ]/g,(_,c)=>c==='C'?'Ć':'ć').replace(/([cCsSzZ])\s*ˇ/g,(_,c)=>({'c':'č','C':'Č','s':'š','S':'Š','z':'ž','Z':'Ž'}[c]));
+ }
+ function renderExtract(target,source){
+  target.replaceChildren();
+  const lines=source.split('\n');let table=null;
+  for(let line of lines){
+   if(!/[$\\]/.test(line)&&/[=<>≤≥]/.test(line)&&/^[\s\dA-Za-zα-ωΑ-Ω=<>≤≥+*/^_().,{}−-]+$/u.test(line)&&line.trim().split(/\s+/).every(w=>!/[A-Za-z]{4,}/.test(w)))line='\\('+line+'\\)';
+   const cells=line.includes(' | ')?line.split(/\s*\|\s*/).filter(Boolean):line.trim().split(/\t+| {3,}/);
+   if(cells.length>1){if(!table){table=document.createElement('table');target.append(table);}const row=table.insertRow();for(const cell of cells)row.insertCell().textContent=cell;continue;}table=null;
+   const paragraph=document.createElement('p');
+   // Preserve explicit LaTeX; typeset isolated numbers without guessing missing formulas.
+   const parts=line.split(/(\$\$[\s\S]*?\$\$|\$[^$]+\$|\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\])/g);
+   const formatted=parts.map((part,i)=>i%2?part:part.replace(/(?<![\p{L}\d])[-+]?\d+(?:[.,]\d+)?(?![\p{L}\d])/gu,'\\($&\\)')).join('');
+   const tokens=formatted.split(/(\*\*[^*]+\*\*|\*[^*]+\*|~~[^~]+~~|<u>[^<]+<\/u>)/g);
+   for(const token of tokens){let tag=null,value=token;if(token.startsWith('**')&&token.endsWith('**')){tag='strong';value=token.slice(2,-2);}else if(token.startsWith('*')&&token.endsWith('*')){tag='em';value=token.slice(1,-1);}else if(token.startsWith('~~')&&token.endsWith('~~')){tag='s';value=token.slice(2,-2);}else if(token.startsWith('<u>')&&token.endsWith('</u>')){tag='u';value=token.slice(3,-4);}const node=tag?document.createElement(tag):document.createTextNode(value);if(tag)node.textContent=value;paragraph.append(node);}target.append(paragraph);
+  }
+  window.renderMathInElement?.(target,{delimiters:[{left:'$$',right:'$$',display:true},{left:'\\[',right:'\\]',display:true},{left:'\\(',right:'\\)',display:false},{left:'$',right:'$',display:false}],throwOnError:false,trust:false,strict:'ignore',maxExpand:200,maxSize:20});
+ }
  const fold=s=>s.normalize('NFKC').toLowerCase();
  window.prepareProjectPdfForQuestion=async(prompt,snapshot,onStage)=>{
+  if(window.localPdfPrompt&&prompt.includes(window.localPdfPrompt.split('\n')[0]))return null;
   if(!snapshot||!['ready','partial'].includes(snapshot.status))return null;
   const pdfs=snapshot.entries.filter(e=>e.kind==='file'&&/\.pdf$/i.test(e.path));if(!pdfs.length)return null;
   const names=pdfs.filter(e=>fold(prompt).includes(fold(e.path))||fold(prompt).includes(fold(e.path.split('/').at(-1))));
@@ -39,24 +59,37 @@
     if(!valid())throw new Error('Sesija je promenjena.');
     onStage?.('Lokalna pretraga: '+n+' / '+doc.numPages);
     const page=await doc.getPage(n),items=(await page.getTextContent()).items;
-    const text=items.map(i=>i.str+(i.hasEOL?'\n':' ')).join('');page.cleanup();if(text.trim())readable++;
+    const text=repairText(items.map(i=>i.str+(i.hasEOL?'\n':' ')).join(''));page.cleanup();if(text.trim())readable++;
     const found=refs.filter(ref=>{const [a,b]=ref.split('.');return new RegExp('(^|[^0-9])'+a+'\\s*[.,]\\s*'+b+'(?![0-9])').test(text);});
     if(found.length)hits.push({page:n,text,refs:found});
    }
   }finally{await task.destroy();}
   if(!valid())throw new Error('Sesija je promenjena.');
-  const result=document.createElement('dialog');result.className='file-preview-dialog';result.setAttribute('aria-label','Rezultati lokalne pretrage');
+  const result=document.createElement('dialog');result.className='file-preview-dialog local-extract-dialog';result.setAttribute('aria-label','Rezultati lokalne pretrage');
   const heading=document.createElement('h2');heading.textContent='Lokalna pretraga: '+file.name;
-  const close=document.createElement('button');close.type='button';close.textContent='Zatvori';close.onclick=()=>result.close();
-  const content=document.createElement('div');content.className='file-preview-content';
+  const top=document.createElement('div');top.className='local-extract-menu';top.setAttribute('role','toolbar');top.setAttribute('aria-label','Uređivanje i prozor');
+  const content=document.createElement('div');content.className='file-preview-content local-extract-content';
   const summary=document.createElement('p'),missing=refs.filter(ref=>!hits.some(h=>h.refs.includes(ref)));
-  summary.textContent=!readable?'PDF nema čitljiv tekst. Za skenirane stranice potreban je OCR.':hits.length?'Pronađene stranice: '+hits.length+'. Proverite tekst u originalu; formule i redosled teksta mogu biti nepotpuni.':'Traženi broj zadatka nije pronađen.';
+  summary.textContent=!readable?'PDF nema čitljiv tekst. Za skenirane stranice potreban je OCR.':hits.length?'Pronađene stranice: '+hits.length+'. Proverite formule i tabele u originalu.':'Traženi broj zadatka nije pronađen.';
   if(missing.length)summary.textContent+=' Nije pronađeno: '+missing.join(', ')+'.';content.append(summary);
-  for(const hit of hits){const title=document.createElement('h3');title.textContent='PDF stranica '+hit.page+' · '+hit.refs.join(', ');const text=document.createElement('pre');text.style.whiteSpace='pre-wrap';text.textContent=hit.text;content.append(title,text);}
-  const original=document.createElement('button');original.type='button';original.textContent='Prikaži originalni PDF';original.onclick=async()=>{result.close();try{await window.localPdfViewer.open(handle,{user,project:snapshot.projectId},valid);}catch(e){onStage?.(e.message);}};
-  result.append(heading,close,content,original);document.body.append(result);
-  const cleanup=new MutationObserver(()=>{if(!valid())result.close();});cleanup.observe(document.body,{attributes:true,subtree:true,attributeFilter:['hidden']});
-  result.addEventListener('close',()=>{cleanup.disconnect();result.remove();},{once:true});result.showModal();
+  const sections=hits.map(hit=>{const title=document.createElement('h3');title.textContent='PDF stranica '+hit.page+' · '+hit.refs.join(', ');const body=document.createElement('div');body.className='local-extract-text';content.append(title,body);return {hit,body,source:hit.text};});
+  const bottom=document.createElement('div');bottom.className='local-extract-menu';bottom.setAttribute('role','toolbar');bottom.setAttribute('aria-label','Rad sa izdvojenim tekstom');
+  function button(bar,label,icon,action){const b=document.createElement('button');b.type='button';const glyph=document.createElement('span');glyph.setAttribute('aria-hidden','true');glyph.textContent=icon;b.append(glyph,document.createTextNode(' '+label));b.onclick=action;bar.append(b);return b;}
+  let editing=false,minimized=false;const formatting=[];
+  function draw(){for(const item of sections)renderExtract(item.body,item.source);}
+  const edit=button(top,'Izmeni tekst','✎',()=>{editing=true;for(const item of sections){item.body.textContent=item.source;item.body.contentEditable='true';item.body.setAttribute('role','textbox');item.body.setAttribute('aria-label','Izmena teksta sa PDF stranice '+item.hit.page);}formatting.forEach(b=>b.hidden=false);edit.hidden=true;save.hidden=false;transfer.disabled=true;sections[0]?.body.focus();});
+  for(const [label,icon,command] of [['Bold','B','bold'],['Italik','𝑰','italic'],['Podvučeno','U̲','underline'],['Precrtano','S̶','strikeThrough']]){const b=button(top,label,icon,()=>document.execCommand(command,false));b.onmousedown=e=>e.preventDefault();b.hidden=true;formatting.push(b);}
+  function serialize(node){if(node.nodeType===3)return node.textContent;if(node.nodeType!==1)return '';const inner=[...node.childNodes].map(serialize).join('');switch(node.tagName){case 'B':case 'STRONG':return '**'+inner+'**';case 'I':case 'EM':return '*'+inner+'*';case 'U':return '<u>'+inner+'</u>';case 'S':case 'STRIKE':return '~~'+inner+'~~';case 'BR':return '\n';case 'DIV':case 'P':return inner+'\n';default:return inner;}}
+  const save=button(top,'Sačuvaj','✓',()=>{for(const item of sections){item.source=repairText([...item.body.childNodes].map(serialize).join('').trim());item.body.contentEditable='false';item.body.removeAttribute('role');}editing=false;formatting.forEach(b=>b.hidden=true);edit.hidden=false;save.hidden=true;transfer.disabled=false;draw();content.scrollTop=0;});save.hidden=true;edit.disabled=!sections.length;
+  const dock=button(document.body,'Vrati izdvojeni tekst','▣',()=>{if(valid()){minimized=false;dock.hidden=true;result.showModal();}else dispose();});dock.className='local-extract-dock';dock.hidden=true;
+  button(top,'Umanji','−',()=>{minimized=true;result.close();dock.hidden=false;});
+  button(top,'Zatvori','×',()=>{minimized=false;result.close();});
+  const transfer=button(bottom,'Tekst → Prompt','↗',()=>{if(editing||!valid())return;const field=$('#promptInput');const extracted=sections.map(item=>'[PDF stranica '+item.hit.page+']\n'+item.source).join('\n\n');const value='Izdvojeni tekst iz '+file.name+':\n\n'+extracted;field.value=value;window.localPdfPrompt=value;field.dispatchEvent(new Event('input',{bubbles:true}));minimized=false;result.close();field.focus();onStage?.('Tekst je prenet u prompt. Dopunite zahtev i kliknite Pošalji.');});transfer.disabled=!sections.length;
+  button(bottom,'Prikaži originalni PDF','▤',async()=>{minimized=false;result.close();try{await window.localPdfViewer.open(handle,{user,project:snapshot.projectId},valid);}catch(e){onStage?.(e.message);}});
+  result.append(heading,top,content,bottom);document.body.append(result);draw();
+  const cleanup=new MutationObserver(()=>{if(!valid())dispose();});cleanup.observe(document.body,{attributes:true,subtree:true,attributeFilter:['hidden']});
+  function dispose(){cleanup.disconnect();dock.remove();result.remove();}
+  result.addEventListener('close',()=>{if(!minimized)dispose();});result.showModal();
   return {localOnly:true};
  };
 })();
