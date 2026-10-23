@@ -1277,6 +1277,7 @@ async function refreshWorkspace(){
  renderWorkspace();updateProjectOptions();applyModules();requestAnimationFrame(updateHistoryOverflow);
 }
 function renderWorkspace(){
+ window.syncExplorerProject?.();
  $('#projectList').replaceChildren();$('#pinnedList').replaceChildren();
  for(const project of workspace.projects){const row=document.createElement('div');row.className='workspace-row'+(activeProject===project.id?' active':'');row.append(workspaceButton(project.name,()=>selectProject(project.id),'workspace-item'),itemMenuButton({kind:'project',id:project.id,name:project.name}));makeWorkspaceDrag(row,{kind:'project',id:project.id});makeWorkspaceDrop(row,item=>moveToProject(item,project.id));$('#projectList').append(row);}
  workspace.pins.forEach((item,index)=>{
@@ -1286,7 +1287,7 @@ function renderWorkspace(){
  });
  applySidebarSections();
 }
-async function selectProject(id){activeProject=id;current=null;activeId=null;workSelection.clear();clearTimeout(pollTimer);stopGenerationTimer();await refreshList();renderConversation();if($('#chatMode').value==='work')await refreshWorkFiles();}
+async function selectProject(id){activeProject=id;window.syncExplorerProject?.();current=null;activeId=null;workSelection.clear();clearTimeout(pollTimer);stopGenerationTimer();await refreshList();renderConversation();if($('#chatMode').value==='work')await refreshWorkFiles();}
 let projectCreationConversationId=null;
 async function startProjectConversation(projectId){if(projectId&&!workspace.projects.some(p=>p.id===projectId))throw new Error('Izaberite aktivan projekat.');activeProject=projectId||null;resetConversationDraft();await refreshList();if($('#chatMode').value==='work')await refreshWorkFiles();}
 function openProject(project=null){projectCreationConversationId=null;$('#projectNewConversation').hidden=!project||!!project.archived;editingProject=project?.id||null;$('#projectName').value=project?.name||'';$('#projectInstructions').value=project?.instructions||'';$('#projectPinned').checked=!!project?.pinned;$('#projectDelete').hidden=!project;$('#projectStatus').textContent='';$('#projectDialog').showModal();}
