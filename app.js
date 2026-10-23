@@ -559,13 +559,14 @@ async function sendMessage(value, retry = null) {
   startGenerationTimer();
   let attempt;
   try {
+    const folderSnapshot=retry?.folderSnapshot??(window.collectProjectFolderSnapshot?await window.collectProjectFolderSnapshot(current?.projectId||activeProject):null);if(version!==epoch)return;
+    const localPdf=!retry&&!attached&&!workSelection.size&&window.prepareProjectPdfForQuestion?await window.prepareProjectPdfForQuestion(question,folderSnapshot,notice):null;if(version!==epoch)return;
+    if(localPdf?.localOnly){stopGenerationTimer();notice('Lokalni pregled je spreman. Dokument i pitanje nisu poslati serveru.');return;}
     if (!current) {
       const result = await api('/api/conversations', 'POST', { model: modelSelect.value, projectId: activeProject });
       current = result.conversation;
       activeId = current.id;
     }
-    const folderSnapshot=retry?.folderSnapshot??(window.collectProjectFolderSnapshot?await window.collectProjectFolderSnapshot(current.projectId):null);if(version!==epoch)return;
-    const localPdf=!retry&&!attached&&!workSelection.size&&window.prepareProjectPdfForQuestion?await window.prepareProjectPdfForQuestion(question,folderSnapshot,notice):null;if(version!==epoch)return;
     attempt = { bookFileId:retry?.bookFileId||localPdf?.fileId||null,folderSnapshot,conversationId: current.id, requestId: retry?.id || crypto.randomUUID(),
       prompt, fileId: retry?.bookFileId ? null : retry?.fileId || attached?.fileId || null, image: retry?.image || attached?.image || null, model: retry?.model || modelSelect.value };
     clearTimeout(pollTimer);
@@ -593,6 +594,7 @@ async function sendMessage(value, retry = null) {
     }
     if (current?.request?.status !== 'pending') notice(error.message);
   } finally {
+    stopGenerationTimer();
     setBusy(false);
     if (currentUser) input.focus({ preventScroll: true });
   }

@@ -1,7 +1,7 @@
-/* Read only the PDF selected for a content question; reuse the indexed copy by hash. */
+/* Local-only PDF lookup: document bytes and extracted text stay in the browser. */
 (() => {
  const dialog=document.createElement('dialog');dialog.className='account-dialog';dialog.id='projectPdfDialog';
- dialog.innerHTML='<div class="dialog-heading"><h2>PDF za ovo pitanje</h2><button type="button" id="projectPdfClose" aria-label="Zatvori">×</button></div><p>Izaberite PDF iz povezanog foldera. Za čitanje će se pripremiti kopija u Biblioteci projekta.</p><label>Dokument<select id="projectPdfSelect"></select></label><button type="button" id="projectPdfRead">Pročitaj izabrani PDF</button>';
+ dialog.innerHTML='<div class="dialog-heading"><h2>PDF za ovo pitanje</h2><button type="button" id="projectPdfClose" aria-label="Zatvori">×</button></div><p>Izaberite PDF iz povezanog foldera. Pretraga i prikaz rade lokalno, bez slanja dokumenta serveru.</p><label>Dokument<select id="projectPdfSelect"></select></label><button type="button" id="projectPdfRead">Pročitaj izabrani PDF</button>';
  document.body.append(dialog);let choosing=null;
  $('#projectPdfClose').addEventListener('click',()=>dialog.close());
  $('#projectPdfRead').addEventListener('click',()=>dialog.close('read'));
@@ -24,21 +24,39 @@
   const linked=await window.localFolderAccess.get(snapshot.projectId);if(!linked.handle||await linked.handle.queryPermission({mode:'read'})!=='granted')throw new Error('Omogućite čitanje povezanog foldera u AL AI eksploreru.');
   const parts=path.split('/');if(parts.some(p=>!p||p==='.'||p==='..'||/[\\\x00-\x1f]/.test(p)))throw new Error('Neispravna putanja PDF-a.');
   let parent=linked.handle;for(const part of parts.slice(0,-1))parent=await parent.getDirectoryHandle(part);
-  const file=await(await parent.getFileHandle(parts.at(-1))).getFile();validateAttachmentSize(file);if(!file.size)throw new Error('PDF je prazan.');
-  onStage?.('Čitanje PDF-a: '+path);const bytes=await file.arrayBuffer();if(version!==epoch)throw new Error('Sesija je promenjena.');
-  const digest=[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(n=>n.toString(16).padStart(2,'0')).join(''),fingerprint=path+':'+digest;
-  if(version!==epoch||user!==currentUser?.id)throw new Error('Sesija je promenjena.');
-  const files=(await api('/api/files')).files,cached=files.find(f=>f.id===linked.uploads?.[fingerprint]&&f.project_id===snapshot.projectId);
-  let result;if(cached){onStage?.('Provera pripremljenog PDF-a: '+path);result=cached.book_pages?{fileId:cached.id}:await window.prepareExistingPdf(cached.id,onStage);}
-  else{
-   const content=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result.split(',')[1]);reader.onerror=()=>reject(new Error('PDF nije pročitan.'));reader.readAsDataURL(new Blob([bytes]));});
-   if(version!==epoch)throw new Error('Sesija je promenjena.');
-   const payload={name:file.name,content,projectId:snapshot.projectId};
-   result=await window.importPdfFile(payload,{upload:()=>window.localFolderAccess.uploadPdf(linked.ctx,payload,f=>onStage?.('Slanje PDF-a: '+Math.floor(f*100)+'% · '+path)),onStage:stage=>onStage?.(path+' · '+stage)});
-   await window.localFolderAccess.rememberUpload(linked,fingerprint,result.fileId);
-  }
-  if(version!==epoch)throw new Error('Sesija je promenjena.');
-  const book=await api('/api/books/'+result.fileId);if(!book.book.readablePages)throw new Error('PDF nema čitljiv tekst. Za skenirane stranice potreban je OCR.');
-  onStage?.('Pretraga PDF-a: '+path);return {fileId:result.fileId,path};
+  const handle=await parent.getFileHandle(parts.at(-1)),file=await handle.getFile();
+  if(!file.size||file.size>100000000)throw new Error('Lokalni pregled podržava PDF do 100 MB.');
+  const valid=()=>version===epoch&&user===currentUser?.id;
+  const refs=[...prompt.matchAll(/(?<![\d.,])\d+\s*[.,]\s*\d+(?!\d)/g)].map(m=>m[0].replace(/\s/g,'').replace(',','.'));
+  if(!refs.length){await window.localPdfViewer.open(handle,{user,project:snapshot.projectId},valid);return {localOnly:true};}
+  onStage?.('Lokalna pretraga PDF-a: '+path);
+  const pdfjs=await import('/vendor/pdfjs/pdf.mjs');pdfjs.GlobalWorkerOptions.workerSrc='/vendor/pdfjs/pdf.worker.mjs';
+  const task=pdfjs.getDocument({data:new Uint8Array(await file.arrayBuffer()),isEvalSupported:false,enableXfa:false,cMapUrl:'/vendor/pdfjs/cmaps/',cMapPacked:true,standardFontDataUrl:'/vendor/pdfjs/standard_fonts/',wasmUrl:'/vendor/pdfjs/wasm/'});
+  const hits=[];let readable=0;
+  try{
+   const doc=await task.promise;
+   for(let n=1;n<=doc.numPages;n++){
+    if(!valid())throw new Error('Sesija je promenjena.');
+    onStage?.('Lokalna pretraga: '+n+' / '+doc.numPages);
+    const page=await doc.getPage(n),items=(await page.getTextContent()).items;
+    const text=items.map(i=>i.str+(i.hasEOL?'\n':' ')).join('');page.cleanup();if(text.trim())readable++;
+    const found=refs.filter(ref=>{const [a,b]=ref.split('.');return new RegExp('(^|[^0-9])'+a+'\\s*[.,]\\s*'+b+'(?![0-9])').test(text);});
+    if(found.length)hits.push({page:n,text,refs:found});
+   }
+  }finally{await task.destroy();}
+  if(!valid())throw new Error('Sesija je promenjena.');
+  const result=document.createElement('dialog');result.className='file-preview-dialog';result.setAttribute('aria-label','Rezultati lokalne pretrage');
+  const heading=document.createElement('h2');heading.textContent='Lokalna pretraga: '+file.name;
+  const close=document.createElement('button');close.type='button';close.textContent='Zatvori';close.onclick=()=>result.close();
+  const content=document.createElement('div');content.className='file-preview-content';
+  const summary=document.createElement('p'),missing=refs.filter(ref=>!hits.some(h=>h.refs.includes(ref)));
+  summary.textContent=!readable?'PDF nema čitljiv tekst. Za skenirane stranice potreban je OCR.':hits.length?'Pronađene stranice: '+hits.length+'. Proverite tekst u originalu; formule i redosled teksta mogu biti nepotpuni.':'Traženi broj zadatka nije pronađen.';
+  if(missing.length)summary.textContent+=' Nije pronađeno: '+missing.join(', ')+'.';content.append(summary);
+  for(const hit of hits){const title=document.createElement('h3');title.textContent='PDF stranica '+hit.page+' · '+hit.refs.join(', ');const text=document.createElement('pre');text.style.whiteSpace='pre-wrap';text.textContent=hit.text;content.append(title,text);}
+  const original=document.createElement('button');original.type='button';original.textContent='Prikaži originalni PDF';original.onclick=async()=>{result.close();try{await window.localPdfViewer.open(handle,{user,project:snapshot.projectId},valid);}catch(e){onStage?.(e.message);}};
+  result.append(heading,close,content,original);document.body.append(result);
+  const cleanup=new MutationObserver(()=>{if(!valid())result.close();});cleanup.observe(document.body,{attributes:true,subtree:true,attributeFilter:['hidden']});
+  result.addEventListener('close',()=>{cleanup.disconnect();result.remove();},{once:true});result.showModal();
+  return {localOnly:true};
  };
 })();
