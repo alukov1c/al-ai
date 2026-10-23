@@ -25,6 +25,13 @@
    .normalize('NFC')
    .replace(/(\d)[ \t\u00a0]+(?=(?:km|cm|mm|nm|µm|μm|m|kg|mg|g|ms|µs|μs|s|min|h|Hz|kHz|MHz|N|kN|Pa|kPa|MPa|J|kJ|W|kW|V|mV|A|mA|K|°C|rad|mol)(?![\p{L}]))/gu,'$1\u00a0');
  }
+ function pageBodyItems(items,page){
+  const height=page.getViewport({scale:1}).height;
+  const sizes=items.filter(i=>i.str?.trim()&&i.height>0).map(i=>i.height).sort((a,b)=>a-b),median=sizes[Math.floor(sizes.length/2)]||10;
+  let footnoteY=null;
+  for(let n=0;n<items.length;n++){const item=items[n],y=item.transform?.[5];if(y<height*.2&&item.height<median*.85&&/^\s*\d{1,2}[.)]?\s*$/.test(item.str)&&items[n+1]?.height<median*.85&&/\p{L}/u.test(items[n+1]?.str||'')){footnoteY=Math.max(footnoteY||0,y);}}
+  return items.filter(item=>{const y=item.transform?.[5];if(!Number.isFinite(y))return true;if(y>height*.94||y<height*.04)return false;if(footnoteY!==null&&y<=footnoteY+2&&item.height<median*.85)return false;return true;});
+ }
  function mathText(text){
   const symbols={'−':'-','×':String.raw`\times `,'·':String.raw`\cdot `,'÷':String.raw`\div `,'≤':String.raw`\le `,'≥':String.raw`\ge `,'π':String.raw`\pi `,'α':String.raw`\alpha `,'β':String.raw`\beta `,'ω':String.raw`\omega `,'Δ':String.raw`\Delta `,'²':'^{2}','³':'^{3}'};
   return text.replace(/([A-Za-zα-ωΑ-Ω])(\d+)/gu,'$1_{$2}').replace(/[−×·÷≤≥παβωΔ²³]/g,c=>symbols[c]);
@@ -38,8 +45,8 @@
   }).join('');
  }
  function prepareExtract(source){
-  const normalized=repairText(source).replace(/\b(m|cm|km)\s*\/\s*s\s*([23])\b/g,'$1/s^{$2}').replace(/(\d)[ \t]*\.[ \t]+(?=\d)/g,'$1.');
-  return normalized.split('\n').map(line=>{
+  const normalized=repairText(source).replace(/(\d+(?:[.,]\d+)?)[ \t\u00a0]*m[ \t]*\n[ \t]*s[ \t]*2[ \t]*\.?[ \t]*/g,'$1 \\(\\frac{\\mathrm{m}}{\\mathrm{s}^{2}}\\)\n').replace(/\b(m|cm|km)\s*\/\s*s\s*([23])\b/g,'$1/s^{$2}').replace(/(\d)[ \t]*\.[ \t]+(?=\d)/g,'$1.');
+  return normalized.replace(/(^|\n)[ \t]*(\d{1,2}\.\d{1,3})(?=[ \t]+[\p{L}(])/gu,'\n\n$2').split('\n').map(line=>{
    // A row made entirely of at least two separated numbers is tabular data.
    if(/^\s*[-+]?\d+(?:[.,]\d+)?(?:[ \t]+[-+]?\d+(?:[.,]\d+)?)+\s*$/.test(line))return line.trim().split(/[ \t]+/).join('\t');
    return line;
@@ -60,7 +67,10 @@
    const wrapper=document.createElement('div');wrapper.className='local-extract-table';target.append(wrapper);
    const escape=text=>text.replace(/[\\{}%$&#_^~]/g,c=>({'\\':String.raw`\backslash `,'{':String.raw`\{`,'}':String.raw`\}`,'%':String.raw`\%`,'$':String.raw`\$`,'&':String.raw`\&`,'#':String.raw`\#`,'_':String.raw`\_`,'^':String.raw`\textasciicircum `,'~':String.raw`\textasciitilde `}[c]));
    const cell=text=>/^[-+]?\d+(?:[.,]\d+)?$/.test(text.trim())?text.trim():String.raw`\text{`+escape(text)+'}';
-   const columns=Math.max(...rows.map(row=>row.length));
+   const counts=new Map();for(const row of rows.filter(numeric))counts.set(row.length,(counts.get(row.length)||0)+1);
+   const columns=[...counts].sort((a,b)=>b[1]-a[1])[0][0];
+   // The numeric body defines column count; detached unit glyphs must not create columns.
+   rows=rows.flatMap(row=>{if(numeric(row))return row.length===columns?[row]:[];const meaningful=row.filter(value=>/[\p{L}]/u.test(value)&&!/^s\s*2$/.test(value));return meaningful.length>=columns?[meaningful.slice(-columns)]:[];});
    wrapper.dataset.latex=String.raw`\begin{array}{|`+Array(columns).fill('c').join('|')+String.raw`|}\hline `+rows.map(row=>Array.from({length:columns},(_,i)=>cell(row[i]||'')).join(' & ')).join(String.raw` \\ \hline `)+String.raw` \\ \hline\end{array}`;
    const table=document.createElement('table');for(const values of rows){const row=table.insertRow();for(let i=0;i<columns;i++)inline(row.insertCell(),values[i]||'');}wrapper.append(table);rows=[];
   }
@@ -69,6 +79,8 @@
    const tabular=cells.length>1&&cells.every(cell=>cell.length<=45&&cell.trim().split(/\s+/).length<=4)&&!/^\s*\d+[.,]\d+\s/.test(line)&&cells.every(cell=>!/[?!;]/.test(cell));
    if(tabular){flushParagraph();rows.push(cells);continue;}flushTable();
    if(!line.trim()){flushParagraph();continue;}
+   if(/^\s*\d{1,2}\.\d{1,3}(?:\s|$)/.test(line))flushParagraph();
+   if(/^\s*\([a-dа-г]\)\s/u.test(line))flushParagraph();
    if(/^(?:\$\$|\\\[)/.test(line.trim())){flushParagraph();const block=document.createElement('div');block.textContent=line;target.append(block);}else paragraph.push(line.trim());
   }
   flushParagraph();flushTable();
@@ -107,7 +119,7 @@
    for(let n=1;n<=doc.numPages;n++){
     if(!valid())throw new Error('Sesija je promenjena.');
     onStage?.('Lokalna pretraga: '+n+' / '+doc.numPages);
-    const page=await doc.getPage(n),items=(await page.getTextContent()).items;
+    const page=await doc.getPage(n),items=pageBodyItems((await page.getTextContent()).items,page);
     const text=repairText(items.map((item,index)=>{const next=items[index+1],end=(item.transform?.[4]||0)+(item.width||0),gap=next?.transform?.[4]-end;return item.str+(item.hasEOL?'\n':gap>Math.max(12,(item.height||10)*1.5)?'\t':' ');}).join(''));page.cleanup();if(text.trim())readable++;
     const found=refs.filter(ref=>{const [a,b]=ref.split('.');return new RegExp('(^|[^0-9])'+a+'\\s*[.,]\\s*'+b+'(?![0-9])').test(text);});
     if(found.length)hits.push({page:n,text,refs:found});
