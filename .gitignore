@@ -122,3 +122,6 @@ Desktop.ini
 
 !market-quotes.js
 !test/market-quotes.test.js
+
+!web-browser.js
+!test/web-browser.test.js

@@ -333,6 +333,8 @@ function appendInlineFormatting(element, text, depth = 0) {
   let cursor = 0, plain = '';
   const flush = () => { if (plain) { element.append(document.createTextNode(plain)); plain = ''; } };
   while (cursor < text.length) {
+    const markdownLink=text.slice(cursor).match(/^\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/);
+    if(markdownLink){try{const u=new URL(markdownLink[2]);if(!u.username&&!u.password){flush();const link=document.createElement('a');link.href=u.href;link.textContent=markdownLink[1];link.target='_blank';link.rel='noopener noreferrer';element.append(link);cursor+=markdownLink[0].length;continue;}}catch{}}
     const webLink=text.slice(cursor).match(/^https?:\/\/[^\s<>]+/);
     if(webLink){let url=webLink[0].replace(/[.,;!?]+$/,'');try{const parsed=new URL(url);if(!parsed.username&&!parsed.password){flush();const link=document.createElement('a');link.href=parsed.href;link.textContent=url;link.target='_blank';link.rel='noopener noreferrer';element.append(link);if(text.startsWith('[Veb ')){const save=document.createElement('button');save.type='button';save.className='web-source-action';save.textContent='Pročitaj / Sačuvaj';save.addEventListener('click',()=>openWebSource(parsed.href));element.append(save);}cursor+=url.length;continue;}}catch{}}
 

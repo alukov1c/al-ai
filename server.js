@@ -51,6 +51,7 @@ const publicFiles = new Map([
   ['/project-folder-client.js', ['project-folder-client.js', 'text/javascript; charset=utf-8']],
   ['/local-pdf-client.js', ['local-pdf-client.js', 'text/javascript; charset=utf-8']],
   ['/pdf-viewer.js', ['pdf-viewer.js', 'text/javascript; charset=utf-8']],
+  ['/web-browser.js',['web-browser.js','text/javascript; charset=utf-8']],
   ['/explorer.js', ['explorer.js', 'text/javascript; charset=utf-8']],
   ['/pdf-import-client.js', ['pdf-import-client.js', 'text/javascript; charset=utf-8']],
   ['/books-ui.js', ['books-ui.js', 'text/javascript; charset=utf-8']],
@@ -361,6 +362,11 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
         if(typeof data.enabled!=='boolean'||(data.filterSources!==undefined&&typeof data.filterSources!=='boolean'))throw new HttpError(400,'Neispravno podešavanje interneta.');
         const updated=await pool.query('UPDATE users SET internet_enabled=$2,internet_preference_set=true,internet_filter_enabled=coalesce($3,internet_filter_enabled) WHERE id=$1 RETURNING internet_enabled,internet_filter_enabled',[user.id,data.enabled,data.filterSources??null]);
         return sendJson(response,200,{enabled:updated.rows[0].internet_enabled,filterSources:updated.rows[0].internet_filter_enabled});
+      }
+      if(pathname==='/api/web/search'&&request.method==='POST'){
+        const query=text(data.query,128,'Upit');
+        const options=normalizeWeb({enabled:true,query,filterSources:user.internet_filter_enabled!==false});
+        return sendJson(response,200,{sources:await webTools.retrieve(user.id,options,query)});
       }
       if(pathname==='/api/web/fetch'&&request.method==='POST')return sendJson(response,200,{source:await webTools.fetchPage(user.id,data.url)});
       if(pathname==='/api/web/save'&&request.method==='POST'){

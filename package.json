@@ -5,7 +5,7 @@
   "description": "DeepSeek asistent sa privatnim korisničkim razgovorima u PostgreSQL bazi",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --check app.js && node --check auth.js && node --check db.js && node --check google-auth.js && node --check config.js && node --check attachments.js && node --check attachment-worker.js && node --check exports.js && node --check export-worker.js && node --check document-export.js && node --check images.js && node --check files.js && node --check math-format.js && node --check pdf-math.js && node --check file-preview.js && node --check memory.js && node --check activity.js && node --check workspace.js && node --check conversation-import.js && node --check local-folder.js && node --check books.js && node --check books-ui.js && node --check pdf-imports.js && node --check explorer.js && node --check pdf-import-client.js && node --check pdf-viewer.js && node --check panel-resize.js && node --check folder-context.js && node --check project-folder-client.js && node --check local-pdf-client.js && node --check web-tools.js && node --check market-quotes.js",
+    "check": "node --check server.js && node --check app.js && node --check auth.js && node --check db.js && node --check google-auth.js && node --check config.js && node --check attachments.js && node --check attachment-worker.js && node --check exports.js && node --check export-worker.js && node --check document-export.js && node --check images.js && node --check files.js && node --check math-format.js && node --check pdf-math.js && node --check file-preview.js && node --check memory.js && node --check activity.js && node --check workspace.js && node --check conversation-import.js && node --check local-folder.js && node --check books.js && node --check books-ui.js && node --check pdf-imports.js && node --check explorer.js && node --check pdf-import-client.js && node --check pdf-viewer.js && node --check panel-resize.js && node --check folder-context.js && node --check project-folder-client.js && node --check local-pdf-client.js && node --check web-tools.js && node --check market-quotes.js && node --check web-browser.js",
     "test": "node --test --test-concurrency=1 test/accounts.test.js test/config.test.js test/attachments.test.js test/images-files.test.js test/memory.test.js",
     "db:migrate": "node scripts/migrate.js",
     "admin:reset": "node scripts/reset-admin.js",
@@ -29,7 +29,8 @@
     "test:pdf-recovery-tabs": "node --test test/pdf-recovery-tabs.test.js",
     "test:project-conversation-ui": "node --test test/project-conversation-ui.test.js",
     "test:pdf-binary-upload": "node --test test/pdf-binary-upload.test.js",
-    "test:web": "node --test --test-concurrency=1 test/web-tools.test.js test/market-quotes.test.js"
+    "test:web": "node --test --test-concurrency=1 test/web-tools.test.js test/market-quotes.test.js",
+    "test:browser": "node --test test/web-browser.test.js"
   },
   "engines": {
     "node": ">=20.16.0 <21 || >=22.3.0"
