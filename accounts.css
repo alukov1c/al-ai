@@ -81,4 +81,26 @@
 .browser-heading>button{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
 .browser-heading>button svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .browser-heading>button[aria-pressed=true]{background:#eff6ff;border-color:#93b5ec}
-.web-browser-dialog.browser-maximized{width:100vw;height:100dvh;max-width:100vw;max-height:100dvh;margin:0;inset:0;border-radius:0;box-sizing:border-box}
+.web-browser-dialog.browser-maximized{width:90vw;height:90dvh;max-width:90vw;max-height:90dvh;margin:auto;inset:0;border-radius:18px;box-sizing:border-box}
+
+/* Browser chrome: title, tabs and window actions share the top row. */
+.browser-heading{min-width:0;gap:6px;flex-shrink:0}
+.browser-heading h2{flex:0 0 auto;font-size:17px;white-space:nowrap}
+.browser-heading .browser-tabbar{flex:1;min-width:0;overflow:hidden;flex-wrap:nowrap}
+.browser-heading #browserTabs{flex-basis:auto;justify-content:flex-start}
+.browser-heading .browser-tab [role=tab]{max-width:160px}
+.browser-address{min-width:0;align-items:center;flex-shrink:0}
+.browser-address>button{flex-shrink:0;white-space:nowrap}
+#browserStatus:empty{display:none}
+@media(min-width:701px){
+ .browser-address{flex-wrap:nowrap;gap:5px}
+ .browser-address input{min-width:70px;width:0;flex:1 1 180px}
+ .browser-address button{padding:7px 8px}
+ .browser-zoom-controls{gap:3px}
+ .browser-zoom-controls #browserZoomReset{min-width:50px}
+}
+@media(max-width:600px){
+ .browser-heading{flex-wrap:wrap}
+ .browser-heading h2{flex:1;font-size:15px}
+ .browser-heading .browser-tabbar{order:1;flex-basis:100%}
+}
