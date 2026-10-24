@@ -104,3 +104,8 @@
  .browser-heading h2{flex:1;font-size:15px}
  .browser-heading .browser-tabbar{order:1;flex-basis:100%}
 }
+
+#browserStatus.browser-loading{display:flex;align-items:center;gap:8px}
+#browserStatus.browser-loading::before{content:"";display:inline-block;width:14px;height:14px;flex:0 0 14px;border:2px solid #cbdcf9;border-top-color:var(--blue,#2563eb);border-radius:50%;animation:browser-loading-spin .8s linear infinite}
+@keyframes browser-loading-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){#browserStatus.browser-loading::before{animation:none;border-right-color:var(--blue,#2563eb)}}
