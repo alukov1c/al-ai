@@ -274,9 +274,9 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
   const server=http.createServer(async (request, response) => {
     response.setHeader('X-Content-Type-Options', 'nosniff');
     response.setHeader('Referrer-Policy', 'same-origin');
-    response.setHeader('X-Frame-Options', 'DENY');
+    response.setHeader('X-Frame-Options', 'SAMEORIGIN');
     response.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
-    response.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' https://fonts.googleapis.com https://accounts.google.com/gsi/style; style-src-attr 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; frame-src https:; worker-src 'self' blob:; connect-src 'self' https://accounts.google.com/gsi/; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+    response.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' https://fonts.googleapis.com https://accounts.google.com/gsi/style; style-src-attr 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; frame-src 'self' https:; worker-src 'self' blob:; connect-src 'self' https://accounts.google.com/gsi/; frame-ancestors 'self'; base-uri 'none'; form-action 'self'");
     try {
       const url = new URL(request.url, 'http://localhost');
       const pathname = url.pathname;

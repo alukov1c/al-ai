@@ -125,3 +125,9 @@ Desktop.ini
 
 !web-browser.js
 !test/web-browser.test.js
+
+# Datoteke izmene za ugradjeni prikaz (vec pracene datoteke ostaju u Git indeksu)
+/server.js
+/web-browser.js
+/explorer.js
+/test/web-browser.test.js
