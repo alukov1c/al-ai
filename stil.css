@@ -1671,8 +1671,8 @@ textarea::placeholder {
 
 /* Desktop: reduce only the welcome top gap and the web-source switch row. */
 @media screen and (min-width:701px){
- .messages.welcome-screen{padding-top:4px;overflow-y:auto}
- .messages.welcome-screen .welcome{margin-top:0}
+ .messages.welcome-screen{display:flex;flex-direction:column;padding-top:12px;padding-bottom:12px;overflow-y:auto}
+ .messages.welcome-screen .welcome{flex:0 0 auto;margin:auto}
  .composer .web-quick{padding:3px 10px}
  .web-quick .internet-switch{font-size:11px;gap:7px}
  .web-quick .internet-switch svg{width:16px;height:16px}
@@ -1684,8 +1684,15 @@ textarea::placeholder {
 /* Compact desktop suggestions, closer to the conversation topics. */
 @media screen and (min-width:701px){
  .welcome-screen .suggestions{margin-top:12px;gap:10px}
- .welcome-screen .suggestion{padding:10px 14px}
- .welcome-screen .suggestion span{margin-bottom:6px}
+ .welcome-screen .suggestion{padding:14px}
+ .welcome-screen .suggestion span{margin-bottom:10px}
  .welcome-screen .suggestion strong{font-size:13px}
  .welcome-screen .suggestion small{margin-top:4px;font-size:12px}
+}
+
+/* Preserve the compact cards when the desktop window has little vertical space. */
+@media screen and (min-width:701px) and (max-height:740px){
+ .messages.welcome-screen{padding-top:4px;padding-bottom:4px}
+ .welcome-screen .suggestion{padding:10px 14px}
+ .welcome-screen .suggestion span{margin-bottom:6px}
 }
