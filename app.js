@@ -504,6 +504,7 @@ function renderAssistantContent(container, content) {
 
 
 function renderConversation({ preserveScroll = false } = {}) {
+  highlightCurrentProject();
   clearTimeout(pollTimer);
   const previousScroll = messagesElement.scrollTop;
   const previousLastId = messagesElement.lastElementChild?.dataset.messageId;
@@ -1295,13 +1296,20 @@ async function refreshWorkspace(){
 function renderWorkspace(){
  window.syncExplorerProject?.();
  $('#projectList').replaceChildren();$('#pinnedList').replaceChildren();
- for(const project of workspace.projects){const row=document.createElement('div');row.className='workspace-row'+(activeProject===project.id?' active':'');row.append(workspaceButton(project.name,()=>selectProject(project.id),'workspace-item'),itemMenuButton({kind:'project',id:project.id,name:project.name}));makeWorkspaceDrag(row,{kind:'project',id:project.id});makeWorkspaceDrop(row,item=>moveToProject(item,project.id));$('#projectList').append(row);}
+ for(const project of workspace.projects){const row=document.createElement('div');row.className='workspace-row';row.dataset.projectId=project.id;row.append(workspaceButton(project.name,()=>selectProject(project.id),'workspace-item'),itemMenuButton({kind:'project',id:project.id,name:project.name}));makeWorkspaceDrag(row,{kind:'project',id:project.id});makeWorkspaceDrop(row,item=>moveToProject(item,project.id));$('#projectList').append(row);}
  workspace.pins.forEach((item,index)=>{
   const row=document.createElement('div');row.className='workspace-row';row.append(workspaceButton(item.name,async()=>{if(item.kind==='project')await selectProject(item.id);else {activeProject=item.project_id||null;await refreshList();await selectConversation(item.id);}},'workspace-item'));
   makeWorkspaceDrag(row,{kind:item.kind,id:item.id});makeWorkspaceDrop(row,async source=>{if(source.id===item.id&&source.kind===item.kind)return;const items=[...workspace.pins],from=items.findIndex(pin=>pin.id===source.id&&pin.kind===source.kind);if(from<0){await pinWorkspaceItem(source);return;}const moved=items.splice(from,1)[0];items.splice(items.findIndex(pin=>pin.id===item.id&&pin.kind===item.kind),0,moved);await api('/api/pins/order','PUT',{items:items.map(({id,kind})=>({id,kind}))});await refreshWorkspace();});
   row.append(itemMenuButton({kind:item.kind,id:item.id,name:item.name,fromPinned:true,projectId:item.project_id||null}));$('#pinnedList').append(row);
  });
- applySidebarSections();
+ applySidebarSections();highlightCurrentProject();
+}
+function highlightCurrentProject(){
+ const selected=current?current.projectId:activeProject;
+ for(const row of document.querySelectorAll('#projectList .workspace-row')){
+  const active=!!selected&&row.dataset.projectId===selected;row.classList.toggle('active',active);
+  const button=row.querySelector('.workspace-item');if(active)button?.setAttribute('aria-current','true');else button?.removeAttribute('aria-current');
+ }
 }
 async function selectProject(id){activeProject=id;window.syncExplorerProject?.();current=null;activeId=null;workSelection.clear();clearTimeout(pollTimer);stopGenerationTimer();await refreshList();renderConversation();if($('#chatMode').value==='work')await refreshWorkFiles();}
 let projectCreationConversationId=null;
