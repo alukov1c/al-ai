@@ -1,4 +1,4 @@
-const {clockAnswer,timeContext,normalizeWeb,createWebTools,webMessages}=require('./web-tools');
+const {stripSourceAppendix,clockAnswer,timeContext,normalizeWeb,createWebTools,webMessages}=require('./web-tools');
 const {mergeMemories,mergeProfileMemories,parseMemoryImport,parseProfileDocument,replaceProfileMemories,memoryContext,validateSettings}=require('./memory');
 const {recordActivity,activitySummary,activityStreaks}=require('./activity');
 const {workspaceApi,ownProject,pluginAllowed,recordUsage,clearImageReferences}=require('./workspace');
@@ -245,6 +245,7 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
       if (typeof answer !== 'string' || !answer.trim()) throw new HttpError(502, 'Model nije vratio odgovor. Ponovite slanje.');
       if (result.choices[0].finish_reason === 'length') throw new HttpError(502, 'Odgovor je dostigao ograničenje dužine. Pokušajte sa kraćim pitanjem.');
       if(bookSources&&bookSources.chunks.length)answer+='\n\nPodloga odgovora: '+bookSources.book.name+' — PDF stranice: '+[...new Set(bookSources.chunks.map(c=>c.page))].sort((a,b)=>a-b).join(', ')+'.';
+      if(webSources.length)answer=stripSourceAppendix(answer);
       if(webSources.length)answer+='\n\nKonsultovani veb izvori:\n'+webSources.map((source,index)=>'[Veb '+(index+1)+'] '+source.title.replace(/[\r\n]/g,' ')+' — '+source.url+'\nPreuzeto: '+source.capturedAt+(source.publishedAt?' · Objavljeno: '+source.publishedAt:' · Datum objave nije naveden.')).join('\n');
       const generationMs = Math.round(performance.now() - generationStarted);
       let messageId=null;

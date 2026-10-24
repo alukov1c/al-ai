@@ -119,3 +119,6 @@ Desktop.ini
 
 !web-tools.js
 !test/web-tools.test.js
+
+!market-quotes.js
+!test/market-quotes.test.js
