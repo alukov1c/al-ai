@@ -116,3 +116,6 @@ Desktop.ini
 
 /2026-10-23 15_59_29-Greenshot.png
 /2026-10-23 15_59_43-Greenshot.png
+
+!web-tools.js
+!test/web-tools.test.js

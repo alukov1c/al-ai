@@ -102,6 +102,7 @@ function signedOut(message = '') {
   activeId = null;
   current = null;
   retryRequest = null;
+  syncInternetPreference(false);syncInternetFilter(true);$('#webQuery').value='';$('#webUrl').value='';$('#webSourceDialog').close();webPreview=null;
   $('#retryButton').hidden = true;
   messagesElement.replaceChildren();
   historyElement.replaceChildren();
@@ -332,6 +333,9 @@ function appendInlineFormatting(element, text, depth = 0) {
   let cursor = 0, plain = '';
   const flush = () => { if (plain) { element.append(document.createTextNode(plain)); plain = ''; } };
   while (cursor < text.length) {
+    const webLink=text.slice(cursor).match(/^https?:\/\/[^\s<>]+/);
+    if(webLink){let url=webLink[0].replace(/[.,;!?]+$/,'');try{const parsed=new URL(url);if(!parsed.username&&!parsed.password){flush();const link=document.createElement('a');link.href=parsed.href;link.textContent=url;link.target='_blank';link.rel='noopener noreferrer';element.append(link);if(text.startsWith('[Veb ')){const save=document.createElement('button');save.type='button';save.className='web-source-action';save.textContent='Pročitaj / Sačuvaj';save.addEventListener('click',()=>openWebSource(parsed.href));element.append(save);}cursor+=url.length;continue;}}catch{}}
+
     if (text.charCodeAt(cursor) === 92 && ('*_'.includes(text[cursor + 1] || ' ') || text.charCodeAt(cursor + 1) === 92)) {
       plain += text[cursor + 1]; cursor += 2; continue;
     }
@@ -408,6 +412,11 @@ function renderAssistantContent(container, content) {
         const math=document.createElement('div');math.textContent=lines.slice(index,end+1).join('\n');container.append(math);consumedThrough=end;list=null;return;
       }
     }
+    if(line.trim()==='Konsultovani veb izvori:'){
+      const panel=document.createElement('section');panel.className='answer-sources';panel.setAttribute('aria-label','Konsultovani veb izvori');const title=document.createElement('h3');title.textContent='Veb izvori';panel.append(title);
+      let next=index+1;for(;next<lines.length;next++){if(!lines[next].trim())continue;if(!/^\[Veb \d+\]/.test(lines[next]))break;const card=document.createElement('div');card.className='answer-source-card';appendInlineFormatting(card,lines[next]);if(/^Preuzeto:/.test(lines[next+1]||'')){const time=document.createElement('small');time.textContent=lines[++next];card.append(time);}panel.append(card);}
+      container.append(panel);consumedThrough=next-1;list=null;return;
+    }
     const headers = splitTableRow(line);
     const separators = splitTableRow(lines[index + 1] || '');
     if (line.includes('|') && headers.length === separators.length &&
@@ -427,7 +436,7 @@ function renderAssistantContent(container, content) {
           if (tag === 'th') cell.scope = 'col';
           const separator = separators[column];
           cell.style.textAlign = separator.endsWith(':') ? (separator.startsWith(':') ? 'center' : 'right') : 'left';
-          appendInlineFormatting(cell, cells[column] || '');
+          const value=cells[column]||'';appendInlineFormatting(cell,value);if(tag==='td'&&/^[+−-]?\s*\d+(?:[.,]\d+)?\s*%$/.test(value.trim())){cell.classList.add(value.trim().startsWith('-')||value.trim().startsWith('−')?'change-negative':value.trim().startsWith('+')?'change-positive':'change-neutral');}
           row.append(cell);
         });
         parent.append(row);
@@ -567,7 +576,7 @@ async function sendMessage(value, retry = null) {
       current = result.conversation;
       activeId = current.id;
     }
-    attempt = { bookFileId:retry?.bookFileId||localPdf?.fileId||null,folderSnapshot,conversationId: current.id, requestId: retry?.id || crypto.randomUUID(),
+    attempt = { web:retry?retry.web||null:($('#webEnabled').checked?{enabled:true,query:$('#webQuery').value.trim(),url:$('#webUrl').value.trim(),filterSources:$('#internetFilter').checked}:null),bookFileId:retry?.bookFileId||localPdf?.fileId||null,folderSnapshot,conversationId: current.id, requestId: retry?.id || crypto.randomUUID(),
       prompt, fileId: retry?.bookFileId ? null : retry?.fileId || attached?.fileId || null, image: retry?.image || attached?.image || null, model: retry?.model || modelSelect.value };
     clearTimeout(pollTimer);
     if(mode==='work')attempt={...attempt,mode:'work',prompt:retry?.prompt || question || 'Pročitaj i sažmi izabrane datoteke.',format:retry?.format || $('#workFormat').value,fileIds:retry?.fileIds || [...new Set([...workSelection,...(attached?.fileId?[attached.fileId]:[]),...(localPdf?[localPdf.fileId]:[])])],settings:retry?.settings || documentPreferences()};
@@ -588,7 +597,7 @@ async function sendMessage(value, retry = null) {
       try { await refreshCurrent(); } catch { /* Zadržati mogućnost ponavljanja posle prekida veze. */ }
       if(mode==='work'&&current){retryRequest={...attempt,id:attempt.requestId,status:'failed'};$('#retryButton').hidden=false;}
       else if (current && !current.request) {
-        retryRequest = { id: attempt.requestId,mode:'chat', prompt,bookFileId:attempt.bookFileId,folderSnapshot:attempt.folderSnapshot, fileId: attempt.fileId, image: attempt.image, model: attempt.model, status: 'failed' };
+        retryRequest = { id: attempt.requestId,mode:'chat', prompt,web:attempt.web,bookFileId:attempt.bookFileId,folderSnapshot:attempt.folderSnapshot, fileId: attempt.fileId, image: attempt.image, model: attempt.model, status: 'failed' };
         $('#retryButton').hidden = false;
       }
     }
@@ -638,6 +647,7 @@ async function enterApp(result) {
   conversations = [];
   clearTimeout(pollTimer);
   currentUser = result.user;
+  syncInternetPreference(currentUser.internetEnabled!==false);syncInternetFilter(currentUser.internetFilterEnabled!==false);
   restoreSidebarSections();
   csrfToken = result.csrfToken;
   $('#loginPanel').hidden = true;
@@ -924,7 +934,7 @@ function documentPreferences() {
   try { const saved = JSON.parse(localStorage.getItem('al-ai-documents-' + currentUser?.id) || '{}'); return {...defaults,...saved}; } catch { return defaults; }
 }
 function settingsSection(name) {
-  for (const section of ['profile','memory','analytics','activity','documents','images','files','library','plugins','usage','archived']) $('#settings-' + section).hidden = section !== name;
+  for (const section of ['profile','memory','analytics','activity','documents','images','files','library','plugins','usage','archived','internet']) $('#settings-' + section).hidden = section !== name;
   document.querySelectorAll('[data-settings]').forEach(button => { if(button.dataset.settings === name)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current'); });
   if (name === 'profile') refreshProfile();
   if (name === 'memory'){refreshMemory();refreshSavedConversations();}
@@ -1469,3 +1479,51 @@ async function refreshLibraryConversations(){
  }catch(e){if(load===libraryConversationsLoad&&session===epoch)$('#libraryConversationsStatus').textContent=e.message;}
 }
 $('#libraryProject').addEventListener('change',refreshLibraryConversations);$('#libraryRefresh').addEventListener('click',refreshLibraryConversations);
+
+let webPreview=null,webPreviewVersion=0;
+function openWebSource(url=''){
+ webPreview=null;webPreviewVersion++;$('#webSourceUrl').value=url;$('#webSourceText').textContent='';$('#webSourceStatus').textContent='Pročitajte stranicu za pregled i čuvanje u projektu.';$('#webSourceSave').disabled=true;
+ fillProjectSelect($('#webSourceProject'),'Izaberite projekat');$('#webSourceProject').value=current?.projectId||activeProject||'';
+ if(!$('#webSourceDialog').open)$('#webSourceDialog').showModal();
+}
+$('#webReadLink').addEventListener('click',()=>{$('#settingsDialog').close();openWebSource($('#webUrl').value.trim());});
+$('#webSourceClose').addEventListener('click',()=>$('#webSourceDialog').close());
+$('#webSourceDialog').addEventListener('close',()=>{webPreviewVersion++;webPreview=null;$('#webSourceText').textContent='';$('#webSourceSave').disabled=true;});
+$('#webSourceUrl').addEventListener('input',()=>{webPreviewVersion++;webPreview=null;$('#webSourceText').textContent='';$('#webSourceSave').disabled=true;});
+$('#webSourceProject').addEventListener('change',()=>$('#webSourceSave').disabled=!webPreview||!$('#webSourceProject').value);
+$('#webSourceFetch').addEventListener('click',async()=>{
+ const session=epoch,version=++webPreviewVersion;webPreview=null;$('#webSourceSave').disabled=true;$('#webSourceFetch').disabled=true;$('#webSourceStatus').textContent='Čitanje stranice…';
+ try{const result=await api('/api/web/fetch','POST',{url:$('#webSourceUrl').value.trim()});if(session!==epoch||version!==webPreviewVersion||!$('#webSourceDialog').open)return;webPreview=result.source;$('#webSourceText').textContent=webPreview.title+'\n'+webPreview.url+'\nPreuzeto: '+webPreview.capturedAt+'\n\n'+webPreview.content;$('#webSourceStatus').textContent='Stranica je pročitana. Možete sačuvati tekstualni snimak u projektu.';$('#webSourceSave').disabled=!$('#webSourceProject').value;}catch(error){if(session===epoch&&version===webPreviewVersion)$('#webSourceStatus').textContent=error.message;}finally{$('#webSourceFetch').disabled=false;}
+});
+$('#webSourceSave').addEventListener('click',async()=>{
+ if(!webPreview)return;const session=epoch,version=webPreviewVersion;$('#webSourceSave').disabled=true;
+ try{await api('/api/web/save','POST',{token:webPreview.token,projectId:$('#webSourceProject').value});if(session!==epoch||version!==webPreviewVersion)return;$('#webSourceStatus').textContent='Veb izvor je sačuvan u Biblioteci izabranog projekta.';}catch(error){if(session===epoch&&version===webPreviewVersion){$('#webSourceStatus').textContent=error.message;$('#webSourceSave').disabled=false;}}
+});
+
+function syncInternetPreference(enabled){
+ for(const id of ['webEnabled','internetDefault'])$('#'+id).checked=enabled;
+ $('#webEnabledState').textContent=enabled?'ON':'OFF';$('#internetDefaultState').textContent=enabled?'ON':'OFF';
+}
+async function changeInternetPreference(event){
+ if(!currentUser)return;const enabled=event.target.checked,previous=currentUser.internetEnabled===true,session=epoch;
+ syncInternetPreference(enabled);$('#webEnabled').disabled=true;$('#internetDefault').disabled=true;$('#internetFilter').disabled=true;$('#internetSettingsStatus').textContent='Čuvanje…';
+ try{const result=await saveInternetPreferences({enabled,filterSources:$('#internetFilter').checked});if(session!==epoch)return;currentUser.internetEnabled=result.enabled;syncInternetPreference(result.enabled);currentUser.internetFilterEnabled=result.filterSources;syncInternetFilter(result.filterSources);$('#internetSettingsStatus').textContent='Podešavanje je sačuvano.';}
+ catch(error){if(session===epoch){syncInternetPreference(previous);$('#internetSettingsStatus').textContent=error.message;notice(error.message);}}
+ finally{if(session===epoch){$('#webEnabled').disabled=isSending;$('#internetDefault').disabled=isSending;$('#internetFilter').disabled=isSending;}}
+}
+$('#webEnabled').addEventListener('change',changeInternetPreference);
+$('#internetDefault').addEventListener('change',changeInternetPreference);
+
+function syncInternetFilter(enabled){$('#internetFilter').checked=enabled;$('#internetFilterState').textContent=enabled?'ON':'OFF';}
+$('#internetFilter').addEventListener('change',async()=>{
+ if(!currentUser)return;const previous=currentUser.internetFilterEnabled!==false,enabled=currentUser.internetEnabled!==false,filterSources=$('#internetFilter').checked,session=epoch;
+ syncInternetFilter(filterSources);for(const id of ['webEnabled','internetDefault','internetFilter'])$('#'+id).disabled=true;
+ try{const result=await saveInternetPreferences({enabled,filterSources});if(session!==epoch)return;currentUser.internetFilterEnabled=result.filterSources;syncInternetFilter(result.filterSources);$('#internetSettingsStatus').textContent='Filter izvora je sačuvan.';}
+ catch(error){if(session===epoch){syncInternetFilter(previous);$('#internetSettingsStatus').textContent=error.message;notice(error.message);}}
+ finally{if(session===epoch)for(const id of ['webEnabled','internetDefault','internetFilter'])$('#'+id).disabled=isSending;}
+});
+
+async function saveInternetPreferences(payload){
+ try{return await api('/api/settings/internet','PUT',payload);}
+ catch(error){if(error.status===404){error.message='Server nema ažuriranu podršku za podešavanja interneta. Potrebno je objaviti novu verziju servera i osvežiti stranicu.';}throw error;}
+}

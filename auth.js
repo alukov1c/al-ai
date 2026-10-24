@@ -36,7 +36,7 @@ async function verifyPassword(password, encoded) {
 function publicUser(row) {
   return { id: row.id, username: row.username, displayName: row.display_name,
     isAdmin: row.is_admin, isActive: row.is_active, mustChangePassword: row.must_change_password,
-    approvalState: row.approval_state, hasPassword: Boolean(row.password_hash), googleLinked: Boolean(row.google_sub), googleEmail: row.google_email || null };
+    internetEnabled:row.internet_preference_set===true?row.internet_enabled===true:true, internetFilterEnabled:row.internet_filter_enabled!==false, approvalState: row.approval_state, hasPassword: Boolean(row.password_hash), googleLinked: Boolean(row.google_sub), googleEmail: row.google_email || null };
 }
 async function bootstrapAdmin(pool, env = process.env) {
   if ((await pool.query('SELECT id FROM users WHERE is_admin=true LIMIT 1')).rowCount) return;
