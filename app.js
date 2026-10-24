@@ -102,7 +102,7 @@ function signedOut(message = '') {
   activeId = null;
   current = null;
   retryRequest = null;
-  syncInternetPreference(false);syncInternetFilter(true);$('#webQuery').value='';$('#webUrl').value='';$('#webSourceDialog').close();webPreview=null;
+  syncInternetPreference(false);syncInternetFilter(true);syncInternetOriginalView(true);$('#webQuery').value='';$('#webUrl').value='';$('#webSourceDialog').close();webPreview=null;
   $('#retryButton').hidden = true;
   messagesElement.replaceChildren();
   historyElement.replaceChildren();
@@ -654,7 +654,7 @@ async function enterApp(result) {
   conversations = [];
   clearTimeout(pollTimer);
   currentUser = result.user;
-  syncInternetPreference(currentUser.internetEnabled!==false);syncInternetFilter(currentUser.internetFilterEnabled!==false);
+  syncInternetPreference(currentUser.internetEnabled!==false);syncInternetFilter(currentUser.internetFilterEnabled!==false);syncInternetOriginalView(currentUser.internetOriginalView!==false);
   restoreSidebarSections();
   csrfToken = result.csrfToken;
   $('#loginPanel').hidden = true;
@@ -1520,10 +1520,10 @@ function syncInternetPreference(enabled){
 }
 async function changeInternetPreference(event){
  if(!currentUser)return;const enabled=event.target.checked,previous=currentUser.internetEnabled===true,session=epoch;
- syncInternetPreference(enabled);$('#webEnabled').disabled=true;$('#internetDefault').disabled=true;$('#internetFilter').disabled=true;$('#internetSettingsStatus').textContent='Čuvanje…';
+ syncInternetPreference(enabled);$('#webEnabled').disabled=true;$('#internetDefault').disabled=true;$('#internetFilter').disabled=true;$('#internetOriginalView').disabled=true;$('#internetSettingsStatus').textContent='Čuvanje…';
  try{const result=await saveInternetPreferences({enabled,filterSources:$('#internetFilter').checked});if(session!==epoch)return;currentUser.internetEnabled=result.enabled;syncInternetPreference(result.enabled);currentUser.internetFilterEnabled=result.filterSources;syncInternetFilter(result.filterSources);$('#internetSettingsStatus').textContent='Podešavanje je sačuvano.';}
  catch(error){if(session===epoch){syncInternetPreference(previous);$('#internetSettingsStatus').textContent=error.message;notice(error.message);}}
- finally{if(session===epoch){$('#webEnabled').disabled=isSending;$('#internetDefault').disabled=isSending;$('#internetFilter').disabled=isSending;}}
+ finally{if(session===epoch){$('#webEnabled').disabled=isSending;$('#internetDefault').disabled=isSending;$('#internetFilter').disabled=isSending;$('#internetOriginalView').disabled=isSending;}}
 }
 $('#webEnabled').addEventListener('change',changeInternetPreference);
 $('#internetDefault').addEventListener('change',changeInternetPreference);
@@ -1531,13 +1531,22 @@ $('#internetDefault').addEventListener('change',changeInternetPreference);
 function syncInternetFilter(enabled){$('#internetFilter').checked=enabled;$('#internetFilterState').textContent=enabled?'ON':'OFF';}
 $('#internetFilter').addEventListener('change',async()=>{
  if(!currentUser)return;const previous=currentUser.internetFilterEnabled!==false,enabled=currentUser.internetEnabled!==false,filterSources=$('#internetFilter').checked,session=epoch;
- syncInternetFilter(filterSources);for(const id of ['webEnabled','internetDefault','internetFilter'])$('#'+id).disabled=true;
+ syncInternetFilter(filterSources);for(const id of ['webEnabled','internetDefault','internetFilter','internetOriginalView'])$('#'+id).disabled=true;
  try{const result=await saveInternetPreferences({enabled,filterSources});if(session!==epoch)return;currentUser.internetFilterEnabled=result.filterSources;syncInternetFilter(result.filterSources);$('#internetSettingsStatus').textContent='Filter izvora je sačuvan.';}
  catch(error){if(session===epoch){syncInternetFilter(previous);$('#internetSettingsStatus').textContent=error.message;notice(error.message);}}
- finally{if(session===epoch)for(const id of ['webEnabled','internetDefault','internetFilter'])$('#'+id).disabled=isSending;}
+ finally{if(session===epoch)for(const id of ['webEnabled','internetDefault','internetFilter','internetOriginalView'])$('#'+id).disabled=isSending;}
 });
 
 async function saveInternetPreferences(payload){
  try{return await api('/api/settings/internet','PUT',payload);}
  catch(error){if(error.status===404){error.message='Server nema ažuriranu podršku za podešavanja interneta. Potrebno je objaviti novu verziju servera i osvežiti stranicu.';}throw error;}
 }
+
+function syncInternetOriginalView(enabled){$('#internetOriginalView').checked=enabled;$('#internetOriginalViewState').textContent=enabled?'ON':'OFF';}
+$('#internetOriginalView').addEventListener('change',async()=>{
+ if(!currentUser)return;const previous=currentUser.internetOriginalView!==false,session=epoch,originalView=$('#internetOriginalView').checked;
+ syncInternetOriginalView(originalView);for(const id of ['webEnabled','internetDefault','internetFilter','internetOriginalView'])$('#'+id).disabled=true;
+ try{const result=await saveInternetPreferences({enabled:currentUser.internetEnabled!==false,originalView});if(session!==epoch)return;currentUser.internetOriginalView=result.originalView;syncInternetOriginalView(result.originalView);window.dispatchEvent(new Event('internet-view-change'));$('#internetSettingsStatus').textContent='Prikaz stranica je sačuvan.';}
+ catch(error){if(session===epoch){syncInternetOriginalView(previous);$('#internetSettingsStatus').textContent=error.message;notice(error.message);}}
+ finally{if(session===epoch)for(const id of ['webEnabled','internetDefault','internetFilter','internetOriginalView'])$('#'+id).disabled=isSending;}
+});

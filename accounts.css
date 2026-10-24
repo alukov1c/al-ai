@@ -59,3 +59,21 @@
 #explorerProject{appearance:none;padding-right:36px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23566580' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
 
 .al-explorer{container-type:inline-size}#alExplorer .folder-toolbar button{font-size:clamp(10px,3.6cqw,12px)}
+
+.browser-history-item{position:relative;border-bottom:1px solid var(--border,#d4dce8);padding-top:30px}
+.browser-history-actions{position:absolute;top:3px;right:3px;display:flex;gap:4px}
+.browser-history-actions button{padding:2px 8px;min-width:28px}
+.browser-history-item .browser-history-entry{width:100%;border:0}
+#browserPage.browser-page-original{padding:0;overflow:hidden;display:flex;min-height:300px}
+.browser-original-frame{border:0;width:100%;height:100%;min-height:55vh;flex:1;background:white}
+.browser-footer{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+#browserViewNote{flex:1;min-width:180px}
+
+.browser-zoom-controls{display:flex;align-items:center;gap:4px;flex-shrink:0}
+.browser-zoom-controls #browserZoomReset{min-width:58px;font-variant-numeric:tabular-nums}
+.browser-zoom-controls [aria-pressed=true]{background:#eff6ff;border-color:#93b5ec}
+.browser-tabbar{align-items:center;min-width:0}
+#browserPage.browser-page-original{position:relative;min-height:0}
+.browser-original-frame{position:absolute;top:0;left:0;min-height:0;max-width:none;transform-origin:top left;flex:none}
+.browser-zoom-content{min-width:0;overflow-wrap:anywhere}
+@media(max-width:600px){.browser-tabbar{flex-wrap:wrap}.browser-tabbar #browserTabs{flex-basis:100%}.browser-zoom-controls{margin-left:auto}}

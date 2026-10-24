@@ -276,7 +276,7 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
     response.setHeader('Referrer-Policy', 'same-origin');
     response.setHeader('X-Frame-Options', 'DENY');
     response.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
-    response.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' https://fonts.googleapis.com https://accounts.google.com/gsi/style; style-src-attr 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; frame-src https://accounts.google.com/gsi/; worker-src 'self' blob:; connect-src 'self' https://accounts.google.com/gsi/; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+    response.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' https://fonts.googleapis.com https://accounts.google.com/gsi/style; style-src-attr 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; frame-src https:; worker-src 'self' blob:; connect-src 'self' https://accounts.google.com/gsi/; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
     try {
       const url = new URL(request.url, 'http://localhost');
       const pathname = url.pathname;
@@ -358,10 +358,10 @@ function createApp({ pool, apiKey = '', fetchImpl = fetch, appOrigin, secureCook
         return sendJson(response,200,await importConversations(pool,user,data));
       }
       if(['/api/internet','/api/settings/internet'].includes(pathname)&&['GET','PUT','POST'].includes(request.method)){
-        if(request.method==='GET')return sendJson(response,200,{enabled:user.internet_preference_set?user.internet_enabled:true,filterSources:user.internet_filter_enabled!==false});
-        if(typeof data.enabled!=='boolean'||(data.filterSources!==undefined&&typeof data.filterSources!=='boolean'))throw new HttpError(400,'Neispravno podešavanje interneta.');
-        const updated=await pool.query('UPDATE users SET internet_enabled=$2,internet_preference_set=true,internet_filter_enabled=coalesce($3,internet_filter_enabled) WHERE id=$1 RETURNING internet_enabled,internet_filter_enabled',[user.id,data.enabled,data.filterSources??null]);
-        return sendJson(response,200,{enabled:updated.rows[0].internet_enabled,filterSources:updated.rows[0].internet_filter_enabled});
+        if(request.method==='GET')return sendJson(response,200,{enabled:user.internet_preference_set?user.internet_enabled:true,filterSources:user.internet_filter_enabled!==false,originalView:user.internet_original_view!==false});
+        if(typeof data.enabled!=='boolean'||(data.filterSources!==undefined&&typeof data.filterSources!=='boolean')||(data.originalView!==undefined&&typeof data.originalView!=='boolean'))throw new HttpError(400,'Neispravno podešavanje interneta.');
+        const updated=await pool.query('UPDATE users SET internet_enabled=$2,internet_preference_set=true,internet_filter_enabled=coalesce($3,internet_filter_enabled),internet_original_view=coalesce($4,internet_original_view) WHERE id=$1 RETURNING internet_enabled,internet_filter_enabled,internet_original_view',[user.id,data.enabled,data.filterSources??null,data.originalView??null]);
+        return sendJson(response,200,{enabled:updated.rows[0].internet_enabled,filterSources:updated.rows[0].internet_filter_enabled,originalView:updated.rows[0].internet_original_view});
       }
       if(pathname==='/api/web/search'&&request.method==='POST'){
         const query=text(data.query,128,'Upit');
