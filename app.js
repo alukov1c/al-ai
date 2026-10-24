@@ -307,7 +307,11 @@ function addMessageElement(role, content, messageId, image, generationMs, totalT
         notice('Poruka je obrisana.');
         await refreshList();
       });
-    });controls.append(remove);bubble.append(controls);
+    });
+    const copy=document.createElement('button');copy.type='button';copy.className='copy-message';copy.title='Kopiraj celu poruku';copy.setAttribute('aria-label','Kopiraj celu poruku');
+    copy.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3"/></svg>';
+    copy.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(content);copy.title='Poruka je kopirana';copy.setAttribute('aria-label','Poruka je kopirana');notice('Ceo tekst poruke je kopiran.');}catch{notice('Kopiranje nije uspelo. Omogućite pristup međuspremniku u pregledaču.');}});
+    controls.append(copy,remove);bubble.append(controls);
   }
   row.append(bubble);
   messagesElement.append(row);
