@@ -1,7 +1,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {randomUUID}=require('node:crypto');
-const {allowedSource,marketAssets,publicUrl,normalizeWeb,createWebTools}=require('../web-tools');
+const {clockAnswer,localDate,latinText,cleanSearchUrl,allowedSource,marketAssets,publicUrl,normalizeWeb,createWebTools}=require('../web-tools');
 const {fixture}=require('./fixture');
 const {chromium}=require('playwright');
 test('web validation and source ownership',async()=>{
@@ -11,14 +11,24 @@ test('web validation and source ownership',async()=>{
  const source=await web.fetchPage('user-a','https://www.coingecko.com/en/coins/bitcoin');assert.equal(web.getSnapshot('user-a',source.token).content,'Text');assert.throws(()=>web.getSnapshot('user-b',source.token));
 });
 test('market queries cover every asset and prefer known sources without hiding dates',async()=>{
- const calls=[];const web=createWebTools({apiKey:'key',fetchImpl:async(url,request)=>{const body=JSON.parse(request.body);calls.push(body);const asset=body.query.split(' ')[0];return {ok:true,json:async()=>({results:[{url:'https://unknown.example/'+asset,title:'Unknown',summary:'Old data',authority:0},{url:(asset==='XAU'?'https://www.investing.com/':'https://www.coingecko.com/')+asset,title:asset,content:'Quote page',authority:3,rerank_score:2,date:new Date().toISOString()}]})};}});
+ const calls=[];const web=createWebTools({apiKey:'key',fetchImpl:async(url,request)=>{const body=JSON.parse(request.body);calls.push({endpoint:url,...body});if(url.endsWith('/fetch'))return {ok:true,json:async()=>({title:'Quote page',content:'Refreshed quote page.'})};const asset=body.query.split(' ')[0];return {ok:true,json:async()=>({results:[{url:'https://www.investing.com/',title:'Homepage',content:'Old homepage ticker',authority:4,rerank_score:3},{url:'https://www.investing.com/news/article',title:'Old analysis',content:'Article price',authority:4,rerank_score:3},{url:'https://unknown.example/'+asset,title:'Unknown',summary:'Old data',authority:0},{url:(asset==='XAU'?'https://www.investing.com/':'https://www.coingecko.com/')+asset,title:asset,content:'Quote page',authority:3,rerank_score:2,date:new Date().toISOString()}]})};}});
  const sources=await web.retrieve('user',{enabled:true,query:'',url:''},'Pretraga interneta i tabelarni prikaz cene BTC, ETH i XAU na osnovu najnovijih podataka uz procentualnu 24-casovnu promenu.');
- assert.equal(calls.length,3);assert.deepEqual(sources.slice(0,3).map(s=>s.asset),['BTC','ETH','XAU']);assert.ok(sources.slice(0,3).every(s=>s.publishedAt&&s.authority===3));assert.ok(calls.every(c=>c.query.length<=128&&c.query.includes('site:')));assert.deepEqual(marketAssets('Objasni programiranje.'),[]);
+ assert.equal(calls.filter(c=>c.endpoint.endsWith('/search')).length,3);assert.equal(calls.filter(c=>c.endpoint.endsWith('/fetch')).length,3);assert.ok(sources.every(s=>s.refreshStatus==='fetched_now'));assert.deepEqual(sources.slice(0,3).map(s=>s.asset),['BTC','ETH','XAU']);assert.ok(sources.slice(0,3).every(s=>s.publishedAt&&s.authority===3));assert.ok(calls.filter(c=>c.query).every(c=>c.query.length<=128&&c.query.includes(localDate())&&c.query.includes('site:')));assert.deepEqual(marketAssets('Objasni programiranje.'),[]);
 });
 test('enabled source filter excludes unselected sites and OFF retains them',async()=>{
  const web=createWebTools({apiKey:'key',fetchImpl:async()=>({ok:true,json:async()=>({results:[{url:'https://unselected.example/news',title:'Other',content:'Text'},{url:'https://www.coingecko.com/en/coins/bitcoin',title:'Selected',content:'Text'}]})})});
  assert.equal((await web.retrieve('u',{enabled:true,query:'test',filterSources:true},'test')).length,1);
  assert.equal((await web.retrieve('u',{enabled:true,query:'test',filterSources:false},'test')).length,2);
+});
+test('clock and source normalization use Belgrade date and exclude regional scripts',async()=>{
+ assert.equal(localDate(new Date('2026-10-24T23:30:00Z')),'2026-10-25');assert.match(clockAnswer('Koji je današnji datum?',new Date('2026-10-24T08:30:00Z')),/24/);
+ assert.equal(latinText('č ć š đ ž Bitcoin'),true);assert.equal(latinText('سعر الذهب الآن'),false);assert.equal(allowedSource('https://sa.investing.com/news/x'),false);assert.equal(allowedSource('https://in.tradingview.com/chart/XAUUSD/x'),false);assert.equal(allowedSource('https://m.th.investing.com/currencies/xau-usd'),false);
+ assert.equal(cleanSearchUrl('https://coinmarketcap.com/currencies/bitcoin/?period=7d%22%22'),'https://coinmarketcap.com/currencies/bitcoin/');
+ const web=createWebTools({apiKey:'key',fetchImpl:async()=>{throw Error('Unexpected call');}});assert.deepEqual(await web.retrieve('u',{enabled:true,filterSources:true},'Koji je današnji datum?'),[]);
+});
+test('failed market refresh removes indexed prices instead of presenting them as current',async()=>{
+ const web=createWebTools({apiKey:'key',fetchImpl:async(url)=>url.endsWith('/search')?{ok:true,json:async()=>({results:[{url:'https://coinmarketcap.com/currencies/bitcoin/',title:'BTC price',content:'Outdated BTC price 100 USD'}]})}:{ok:false,status:504}});
+ const sources=await web.retrieve('u',{enabled:true,query:'',filterSources:true},'Najnovija cena BTC');assert.equal(sources[0].refreshStatus,'failed');assert.ok(!sources[0].content.includes('100 USD'));
 });
 test('search, citations, retry recovery, source save and browser flow',async t=>{
  const app=await fixture();let browser;t.after(async()=>{await browser?.close();await app.close();});
@@ -31,6 +41,7 @@ test('search, citations, retry recovery, source save and browser flow',async t=>
  const conversation=(await client.request('/api/conversations','POST',{projectId:project,model:'deepseek-flash'})).data.conversation.id;
  const base={conversationId:conversation,requestId:randomUUID(),prompt:'Obicno pitanje',model:'deepseek-flash'};
  assert.equal((await client.request('/api/chat','POST',base)).status,200);assert.equal(calls.filter(c=>c.url.includes('/tools/')).length,0);
+ const beforeClock=calls.length;const clockResult=await client.request('/api/chat','POST',{...base,requestId:randomUUID(),prompt:'Koji je današnji datum?',web:{enabled:true,filterSources:true}});assert.equal(clockResult.status,200);assert.match(clockResult.data.message,/Danas je/);assert.equal(calls.length,beforeClock);
  const question={...base,requestId:randomUUID(),prompt:'Proveri izvor',web:{enabled:true,query:'test source',url:''}};
  const response=await client.request('/api/chat','POST',question);assert.equal(response.status,200,JSON.stringify(response.data));assert.match(response.data.message,/Konsultovani veb izvori/);assert.match(response.data.message,/https:\/\/www.coingecko.com\/en\/coins\/bitcoin/);
  assert.ok(calls.at(-1).body.messages.some(m=>m.content.includes('Verified source text.')));const count=calls.length;
