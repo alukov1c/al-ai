@@ -77,3 +77,8 @@
 .browser-original-frame{position:absolute;top:0;left:0;min-height:0;max-width:none;transform-origin:top left;flex:none}
 .browser-zoom-content{min-width:0;overflow-wrap:anywhere}
 @media(max-width:600px){.browser-tabbar{flex-wrap:wrap}.browser-tabbar #browserTabs{flex-basis:100%}.browser-zoom-controls{margin-left:auto}}
+
+.browser-heading>button{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.browser-heading>button svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.browser-heading>button[aria-pressed=true]{background:#eff6ff;border-color:#93b5ec}
+.web-browser-dialog.browser-maximized{width:100vw;height:100dvh;max-width:100vw;max-height:100dvh;margin:0;inset:0;border-radius:0;box-sizing:border-box}
